@@ -13,9 +13,15 @@ export class ApiClient {
       xhr.addEventListener("load", () => {
         if (xhr.status === 201) {
           resolve(JSON.parse(xhr.responseText));
-        } else {
-          reject(Object.assign(new Error("upload"), { status: xhr.status }));
+          return;
         }
+        let detail = null;
+        try {
+          detail = JSON.parse(xhr.responseText).detail || null;
+        } catch {
+          detail = null;
+        }
+        reject(Object.assign(new Error("upload"), { status: xhr.status, detail }));
       });
       xhr.addEventListener("error", () => reject(new Error("network")));
       xhr.send(form);
