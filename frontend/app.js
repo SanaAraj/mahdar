@@ -129,7 +129,9 @@ async function uploadCurrent() {
     setHashJob(result.id);
     startPolling(result.id);
   } catch (err) {
-    setError(STRINGS.uploadFailed);
+    // The server's Arabic reason when it sent one; the generic copy is for
+    // a genuine network failure only.
+    setError(err.detail || STRINGS.uploadFailed);
   }
 }
 
@@ -185,8 +187,8 @@ function renderDone(job) {
   renderAnalysisBanner(job, () => reanalyze(job.id));
   renderStats(job);
   renderSpeakers(job);
-  renderMinutes(job);
-  renderTasks(job);
+  renderMinutes(job, seekToSentence);
+  renderTasks(job, seekToSentence);
   renderSentences(job);
   initSkimBar(job, seekToSentence);
 }

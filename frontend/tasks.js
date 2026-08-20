@@ -1,5 +1,7 @@
 // The follow-up tasks: one row per task, checkbox-shape at the inline start,
-// due phrase at the inline end and the priority badge below the description.
+// due phrase at the inline end, then the owner line and the priority badge
+// below the description. A row whose citation resolves seeks the player there.
+import { makeSeekable, seekTargetOf } from "./minutes.js";
 import { STRINGS } from "./strings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -11,23 +13,28 @@ function emptyNote(text) {
   return p;
 }
 
-export function renderTasks(job) {
+export function renderTasks(job, onSeek) {
   const section = $("tasks-section");
   section.innerHTML = "";
-  const tasks = job.analysis ? job.analysis.tasks : [];
+  if (!job.analysis) {
+    section.appendChild(emptyNote(STRINGS.sectionsEmpty));
+    return;
+  }
+  const tasks = job.analysis.tasks;
   if (!tasks.length) {
     section.appendChild(emptyNote(STRINGS.tasksEmpty));
     return;
   }
+  const known = new Set((job.sentences || []).map((s) => s.id));
   const list = document.createElement("ul");
   list.className = "tasks-list";
   for (const task of tasks) {
-    list.appendChild(buildTaskRow(task));
+    list.appendChild(buildTaskRow(task, known, onSeek));
   }
   section.appendChild(list);
 }
 
-function buildTaskRow(task) {
+function buildTaskRow(task, known, onSeek) {
   const li = document.createElement("li");
   li.className = "task-row";
 
@@ -51,6 +58,11 @@ function buildTaskRow(task) {
 
   body.appendChild(head);
 
+  const owner = document.createElement("span");
+  owner.className = "task-owner";
+  owner.textContent = `${STRINGS.colOwner}: ${task.owner || STRINGS.taskOwnerFallback}`;
+  body.appendChild(owner);
+
   if (task.priority) {
     const badge = document.createElement("span");
     badge.className = "priority-badge";
@@ -59,6 +71,8 @@ function buildTaskRow(task) {
     body.appendChild(badge);
   }
 
+  const target = seekTargetOf(task, known);
+  if (target) makeSeekable(li, target, onSeek);
   li.append(box, body);
   return li;
 }
