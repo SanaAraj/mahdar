@@ -32,8 +32,9 @@ all-Arabic prompt on three clips (two Gulf, one Egyptian): six runs, no
 retries, nothing dropped, fully Arabic output both ways. On that evidence the
 two prompts are equal, and the English one stayed because it follows
 instructions harder and survives a model swap. The retired Arabic prompt is
-kept as tests/fixture_prompt_arabic.py so the comparison stays repeatable;
-the app never imports it.
+kept as tests/fixture_prompt_arabic.py as the honest record of what was
+compared; the app never imports it, and no automated harness re-runs the
+comparison.
 
 ## 2026-08-18: every extracted item must cite its sentences
 
@@ -128,9 +129,10 @@ about 2.2x for Arabic. The constant is now 1.25. The single-call budget is
 8,550 estimated tokens, sized to stay inside the 8K free-tier per-minute
 window, and a map window gets 5,000 after subtracting 3,180 of measured
 prompt overhead and a 370-token safety margin. Windows never split a
-sentence. Because the model numbers each window from s1, the per-window
-results are remapped to the real sentence ids before any merge, otherwise
-window two would credit window one's lines. The reduce call sees only the
+sentence. Windows keep their real sentence ids in the prompt and the model is
+told to cite only the ids shown, so before any merge each window's citations
+are grounded against that window's own id set: a stray id from another window
+is dropped, never remapped. The reduce call sees only the
 compact per-window summaries (capped at 60 items), never the transcript, and
 near-duplicate items fuse and carry the union of their segment ids. The
 merged result passes the same citation, overlap, and date guards as the
@@ -141,8 +143,70 @@ message asking them to split the recording; nothing is truncated silently.
 
 A 60-second upload of pure silence came back from Whisper as a confident
 sentence with an invented name, the segment marked no_speech_prob 0.70. That
-settled it: words belonging to segments at or above 0.6 on that score are
+settled it: words belonging to segments above 0.6 on that score are
 dropped, and runs of repeated identical sentences (the loop Whisper falls
 into on dead air) are collapsed. The silence clip now produces zero sentences
 instead of a fake one, and the filter runs in the assemble stage so the cloud
 and local paths share it.
+
+## 2026-08-20: window citations are grounded, never remapped
+
+The first map-reduce cut assumed each window's reply renumbered its citations
+from s1 and remapped them onto the real ids, while the window prompt showed
+the real ids and told the model to cite only those. A compliant model's
+later-window citations therefore mapped to nothing and every item it
+extracted past the first window was culled by the citation guard. The remap
+is gone: windows keep their real sentence ids end to end, and each window's
+citations are filtered against that window's own id set, so a foreign id is
+dropped instead of being translated onto the wrong line. A regression test
+drives a six-window transcript through a mocked compliant model and asserts
+the last window's id survives into the merged minutes.
+
+## 2026-08-20: a diarized speaker change closes a sentence
+
+Verified live on a real two-party call: rapid exchanges shorter than the
+0.75-second pause threshold landed in one sentence, which was then credited
+wholesale to whichever speaker held the larger overlap. A diarized turn
+change is now a hard sentence boundary beside the pause, the terminators,
+and the word and duration limits. When diarization was skipped or failed
+there are no turns, and segmentation is exactly what it was before.
+
+## 2026-08-20: interrupted jobs settle at boot
+
+A state file persisted mid-run used to reload as running forever, leaving an
+endless stage spinner with no way out (observed on a real job after a dev
+restart). On registry load, an in-flight job that already stored its
+transcript becomes done with a retryable analyze error note, mirroring the
+runner's soft-fail; a job interrupted before any transcript becomes failed
+with the retry message. Deliberately no auto-resume: replaying half a run
+against half-written artifacts risks silently mixing stale and fresh output,
+and a clean retry is cheap.
+
+## 2026-08-20: minutes and task rows seek by their first cited sentence
+
+The per-item citation chips were removed with the s-id listing because the
+chips read as a debugging surface, but that also removed the task sheet's
+click-any-item-to-jump behavior. The row itself is now the control: a topic,
+decision, directive, or task whose citation resolves seeks the player to its
+first cited sentence and highlights it exactly as a transcript row does. A
+row whose citations do not resolve gets none of the button affordances, so a
+dead row is visibly plain rather than silently ignoring clicks.
+
+## 2026-08-21: the reduce reply is anchored and key-repaired, never guessed
+
+On long meetings the reduce call occasionally returned JSON the schema
+rejected: uppercase field names, observed live as four attempts before a
+valid reply on a 37.5-minute recording. Root cause: the reduce prompt was the
+only extraction prompt that never showed the JSON schema, while its input
+blocks are labeled with uppercase markers (TITLE, TOPIC, DECISION), so the
+model mirrored the only field names it ever saw. Two changes, both
+deterministic. First, the reduce prompt now carries the same schema example
+as the extraction prompt plus an explicit rule that the uppercase markers
+label the input and are never JSON keys; the reduce token budget was
+re-derived for the larger prompt (overhead 1360 to 1740, budget 6820 to
+6440). Second, a key-case repair runs before every validation: a key whose
+lowercase form is a known schema field is renamed, only when the exact field
+is not already present, and values are never touched, so a reply that was
+correct apart from key casing passes on the first call instead of spending
+the single correction retry. The transcript was never affected by this
+failure; only the extracted minutes were.
