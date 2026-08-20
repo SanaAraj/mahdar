@@ -11,11 +11,12 @@ def _overlap(a_start: float, a_end: float, b_start: float, b_end: float) -> floa
 def assign_speakers(sentences: list[Sentence], turns: list[Turn]) -> list[Sentence]:
     """Attribute each sentence to its maximal-overlap turn, or None."""
     for sentence in sentences:
-        sentence.speaker = _best_speaker(sentence.start, sentence.end, turns)
+        sentence.speaker = best_speaker(sentence.start, sentence.end, turns)
     return sentences
 
 
-def _best_speaker(start: float, end: float, turns: list[Turn]) -> str | None:
+def best_speaker(start: float, end: float, turns: list[Turn]) -> str | None:
+    """The maximal-overlap speaker of a time span, or None without any overlap."""
     best: str | None = None
     best_overlap = 0.0
     for turn in turns:

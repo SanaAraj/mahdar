@@ -1,5 +1,7 @@
 from backend.app import constants
+from backend.app.core.models import Turn
 from backend.app.processing.sentences import words_to_sentences
+from backend.app.processing.speakers import assign_speakers
 
 from .factories import make_words
 
@@ -145,3 +147,26 @@ def test_long_run_every_word_consumed_with_hard_splits():
     consumed = [tok for s in result for tok in s.text.split()]
     assert consumed == tokens
     assert all(s.end - s.start <= SENTENCE_MAX_DURATION_S + 0.61 for s in result)
+
+
+def test_turn_change_is_a_hard_sentence_boundary():
+    """Two speakers alternate faster than the pause threshold: one sentence per turn."""
+    words = make_words(["كلمة"] * 12, step=0.2, gaps=[0.05] * 12)
+    turns = [
+        Turn(start=k * 0.75, end=k * 0.75 + 0.7, speaker=f"SPEAKER_0{k % 2}") for k in range(4)
+    ]
+    sentences = assign_speakers(words_to_sentences(words, turns), turns)
+    assert len(sentences) == 4
+    assert [s.speaker for s in sentences] == [
+        "SPEAKER_00",
+        "SPEAKER_01",
+        "SPEAKER_00",
+        "SPEAKER_01",
+    ]
+    assert all(len(s.text.split()) == 3 for s in sentences)
+
+
+def test_without_turns_no_extra_boundary_is_added():
+    """The no-diarization path keeps exactly the old segmentation."""
+    words = make_words(["كلمة"] * 12, step=0.2, gaps=[0.05] * 12)
+    assert len(words_to_sentences(words)) == 1

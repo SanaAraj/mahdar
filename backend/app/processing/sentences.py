@@ -1,16 +1,19 @@
 """Turns timestamped words into sentences with logical endings."""
 
 from backend.app import constants
-from backend.app.core.models import Sentence, Word
+from backend.app.core.models import Sentence, Turn, Word
+from backend.app.processing.speakers import best_speaker
 
 
-def words_to_sentences(words: list[Word]) -> list[Sentence]:
-    """Group words into sentences, closed by punctuation, pause, or hard limits."""
+def words_to_sentences(words: list[Word], turns: list[Turn] | None = None) -> list[Sentence]:
+    """Group words into sentences, closed by punctuation, pause, hard limits,
+    or a diarized speaker change. Without turns the behavior is unchanged."""
+    marks = _turn_marks(words, turns or [])
     sentences: list[Sentence] = []
     current: list[Word] = []
     for index, word in enumerate(words):
         current.append(word)
-        if _should_close(current, words, index):
+        if _should_close(current, words, index, marks):
             sentences.append(_build(sentences, current))
             current = []
     if current:
@@ -18,7 +21,16 @@ def words_to_sentences(words: list[Word]) -> list[Sentence]:
     return sentences
 
 
-def _should_close(current: list[Word], words: list[Word], index: int) -> bool:
+def _turn_marks(words: list[Word], turns: list[Turn]) -> list[str | None]:
+    """Each word's diarized speaker; all None when diarization was skipped."""
+    if not turns:
+        return [None] * len(words)
+    return [best_speaker(word.start, word.end, turns) for word in words]
+
+
+def _should_close(
+    current: list[Word], words: list[Word], index: int, marks: list[str | None]
+) -> bool:
     word = words[index]
     duration = word.end - current[0].start
     if len(current) >= constants.SENTENCE_MAX_WORDS:
@@ -29,6 +41,11 @@ def _should_close(current: list[Word], words: list[Word], index: int) -> bool:
         gap = words[index + 1].start - word.end
         if gap >= constants.SENTENCE_PAUSE_GAP_S:
             return True
+        # A diarized speaker change is a hard boundary: one sentence never
+        # carries both sides of an exchange.
+        if marks[index] is not None and marks[index + 1] is not None:
+            if marks[index] != marks[index + 1]:
+                return True
     return _ends_with_closer(word.text)
 
 

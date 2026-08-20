@@ -91,7 +91,7 @@ class Pipeline:
         words = cleanup.filter_no_speech_words(analysis.read_words(job_dir))
         turns = analysis.read_turns(job_dir)
         sentences = cleanup.collapse_repeated_sentences(
-            assign_speakers(words_to_sentences(words), turns)
+            assign_speakers(words_to_sentences(words, turns), turns)
         )
         with self._registry.locked(job_id) as current:
             if current is not None:
