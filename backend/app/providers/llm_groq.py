@@ -160,6 +160,8 @@ class GroqMinutesExtractor:
 
     def _assert_model_available(self) -> None:
         available = available_models(self._settings)
+        if not available:
+            return  # the listing is unknown: never claim retirement without evidence
         configured = self._settings.groq_llm_model
         if configured in available:
             return

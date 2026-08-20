@@ -1,9 +1,10 @@
 """The Groq model-catalog preflight for the minutes extractor.
 
-Fetched live once per process from GET /models so a retired configured model is
-caught before any analysis call, with a curated chat-id suggestion list when the
-live listing cannot be read. The module-level cache is process state by design;
-tests reset it by patching this module's attribute.
+Fetched live from GET /models so a retired configured model is caught before
+any analysis call. Only a successful fetch is cached for the process; a failed
+or empty listing means unknown and the check is skipped, so a transient outage
+can never masquerade as a retired model. Tests reset the cache by patching this
+module's attribute.
 """
 
 import logging
@@ -23,7 +24,7 @@ _CHAT_PREFIXES = ("openai/", "meta-llama/", "qwen/", "allam", "groq/compound")
 
 
 def available_models(settings: Settings) -> frozenset[str]:
-    """Live IDs once per process; empty set on any failure (no crash)."""
+    """Live IDs cached once per successful fetch; empty set means unknown, never cached."""
     global _models_cache
     if _models_cache is not None:
         return _models_cache
@@ -34,12 +35,15 @@ def available_models(settings: Settings) -> frozenset[str]:
     try:
         with httpx.Client(timeout=constants.MODELS_TIMEOUT_S) as client:
             resp = client.get(url, headers=headers)
+        resp.raise_for_status()
         ids = {m["id"] for m in resp.json().get("data", []) if "id" in m}
-        _models_cache = frozenset(ids)
-        log.info("Groq /models preflight: %d model(s) available", len(_models_cache))
     except (httpx.HTTPError, ValueError, KeyError) as exc:
+        # A transient listing failure must not poison the process: nothing is
+        # cached, so the next analysis simply fetches again.
         log.warning("Groq /models preflight failed, skipping check: %s", exc)
-        _models_cache = frozenset()
+        return frozenset()
+    _models_cache = frozenset(ids)
+    log.info("Groq /models preflight: %d model(s) available", len(_models_cache))
     return _models_cache
 
 
