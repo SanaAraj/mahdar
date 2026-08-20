@@ -3,6 +3,7 @@ and a single-speaker clip. The pipeline runs for real against a generated wav;
 only the providers are mocked, as in tests/test_api.py.
 """
 
+import json
 import subprocess
 import time
 from pathlib import Path
@@ -13,7 +14,14 @@ from fastapi.testclient import TestClient
 from backend.app import strings
 from backend.app.config import get_settings
 from backend.app.core.jobs import JobRegistry
-from backend.app.core.models import JobStatus, Turn
+from backend.app.core.models import (
+    JobStatus,
+    MeetingJob,
+    Sentence,
+    Stage,
+    StageState,
+    Turn,
+)
 from backend.app.main import create_app
 from backend.app.providers.diarize_local import LocalDiarizer
 from backend.app.providers.llm_groq import GroqMinutesExtractor
@@ -140,3 +148,66 @@ def test_single_speaker_clip_yields_one_speaker_chip(
     # The one cell stays consistent on a registry reload.
     fresh = JobRegistry(one_speaker_client.app.state.settings.data_dir)
     assert len(fresh.get(job_id).speakers) == 1
+
+
+# ---------- interrupted jobs settle at boot ----------
+
+
+def _stages(**states) -> list[Stage]:
+    """The five pipeline stages with per-key states (default pending)."""
+    return [
+        Stage(
+            key=key,
+            label_ar=strings.resolve(f"stage.{key}"),
+            state=states.get(key, StageState.PENDING),
+        )
+        for key in ("convert", "transcribe", "diarize", "assemble", "analyze")
+    ]
+
+
+def _write_state(tmp_path: Path, job: MeetingJob) -> Path:
+    job_dir = tmp_path / job.id
+    job_dir.mkdir(parents=True)
+    path = job_dir / "state.json"
+    path.write_text(json.dumps(job.model_dump(mode="json"), ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_interrupted_job_reloads_as_failed_not_spinning(tmp_path: Path):
+    """A restart mid-transcription must not reload as running forever."""
+    job = MeetingJob(
+        id="feedfacecafe",
+        status=JobStatus.TRANSCRIBING,
+        stages=_stages(convert=StageState.DONE, transcribe=StageState.RUNNING),
+    )
+    state_path = _write_state(tmp_path, job)
+    loaded = JobRegistry(tmp_path).get("feedfacecafe")
+    assert loaded.status == JobStatus.FAILED
+    assert loaded.error_ar == strings.resolve("transcription.unexpected")
+    assert all(stage.state != StageState.RUNNING for stage in loaded.stages)
+    # The settled state is persisted, so the next boot needs no repair.
+    assert json.loads(state_path.read_text("utf-8"))["status"] == "failed"
+
+
+def test_interrupted_analysis_keeps_the_transcript_usable(tmp_path: Path):
+    """A crash mid-analysis keeps the meeting done, with a retryable analyze note."""
+    job = MeetingJob(
+        id="feedfacecaff",
+        status=JobStatus.ANALYZING,
+        sentences=[Sentence(id="s1", start=0.0, end=1.0, text="مرحبا بالجميع")],
+        stages=_stages(
+            convert=StageState.DONE,
+            transcribe=StageState.DONE,
+            diarize=StageState.SKIPPED,
+            assemble=StageState.DONE,
+            analyze=StageState.RUNNING,
+        ),
+    )
+    _write_state(tmp_path, job)
+    loaded = JobRegistry(tmp_path).get("feedfacecaff")
+    assert loaded.status == JobStatus.DONE
+    assert loaded.error_ar is None
+    analyze = next(stage for stage in loaded.stages if stage.key == "analyze")
+    assert analyze.state == StageState.ERROR
+    assert analyze.note_ar == strings.resolve("analysis.failed")
+    assert len(loaded.sentences) == 1

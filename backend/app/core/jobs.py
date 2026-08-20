@@ -5,11 +5,36 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from backend.app.core.models import MeetingJob
+from backend.app import strings
+from backend.app.core.models import JobStatus, MeetingJob, StageState
 
 log = logging.getLogger(__name__)
 
 _STATE_FILE = "state.json"
+
+
+def _settle_interrupted(job: MeetingJob) -> bool:
+    """Settle a job reloaded mid-run: it will never resume, so it must not spin.
+
+    A surviving transcript keeps the meeting usable with a retryable analyze
+    note, mirroring the runner's soft-fail; anything earlier becomes a plain
+    failure the UI can retry from. True when the job was changed.
+    """
+    if job.status in (JobStatus.DONE, JobStatus.FAILED):
+        return False
+    for stage in job.stages:
+        if stage.state is StageState.RUNNING:
+            stage.state = StageState.ERROR
+    if job.sentences:
+        job.status = JobStatus.DONE
+        for stage in job.stages:
+            if stage.key == "analyze":
+                stage.state = StageState.ERROR
+                stage.note_ar = strings.resolve("analysis.failed")
+    else:
+        job.status = JobStatus.FAILED
+        job.error_ar = strings.resolve("transcription.unexpected")
+    return True
 
 
 class JobRegistry:
@@ -32,6 +57,11 @@ class JobRegistry:
                 except (ValueError, OSError):
                     log.warning("Skipping unreadable state file: %s", state_path)
                     continue
+                if _settle_interrupted(job):
+                    log.warning("Settled interrupted job %s as %s", job.id, job.status)
+                    # The constructor runs before any thread exists, so writing
+                    # without the lock here is safe.
+                    self._persist_locked(job)
                 self._jobs[job.id] = job
         if self._jobs:
             log.info("Reloaded %d job(s) from %s", len(self._jobs), self._data_dir)
