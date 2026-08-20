@@ -3,6 +3,7 @@ id remapping, the reduce merge, and the dispatch between the two paths (all
 network access is mocked)."""
 
 import json
+import re
 from datetime import date
 
 import httpx
@@ -148,21 +149,21 @@ def _two_window_analysis(decision_text: str, sids: list[str], title: str) -> str
 
 
 def test_two_window_merge_deduplicates_and_unions_ids():
-    # Two windows that each cite their own first line as s1; the remap unifies
-    # the real ids before the reduce collects them, and the near-identical
-    # ruling fuses into one decision.
+    # Windows keep their real global ids on the wire; grounding keeps the cited
+    # ids that belong to the window and drops foreign ones, and the
+    # near-identical ruling fuses into one decision.
     window_a = [_sentence("s1", 3, 0.0), _sentence("s2", 3, 3.0)]
     window_b = [_sentence("s3", 3, 6.0), _sentence("s4", 3, 9.0)]
     part_a = Analysis.model_validate_json(_two_window_analysis("اعتماد الخطة", ["s1"], "اجتماع"))
     part_b = Analysis.model_validate_json(
-        _two_window_analysis("اعتماد الخطة الجديدة", ["s1"], "اجتماع")
+        _two_window_analysis("اعتماد الخطة الجديدة", ["s3", "s1"], "اجتماع")
     )
 
-    remapped_a = mapreduce._remap_window_ids(part_a, window_a)
-    remapped_b = mapreduce._remap_window_ids(part_b, window_b)
-    assert remapped_a.decisions[0].segment_ids == ["s1"]
-    # The second window's local s1 becomes the real s3, not a duplicate of s1.
-    assert remapped_b.decisions[0].segment_ids == ["s3"]
+    grounded_a = mapreduce._ground_window_ids(part_a, window_a)
+    grounded_b = mapreduce._ground_window_ids(part_b, window_b)
+    assert grounded_a.decisions[0].segment_ids == ["s1"]
+    # s1 is not a sentence of window b, so it is dropped there, never remapped.
+    assert grounded_b.decisions[0].segment_ids == ["s3"]
 
     merged = mapreduce._merge_fallback(
         Analysis(
@@ -173,7 +174,7 @@ def test_two_window_merge_deduplicates_and_unions_ids():
                 Decision(text="اعتماد الخطة الجديدة", segment_ids=["s3"]),
             ],
         ),
-        [remapped_a, remapped_b],
+        [grounded_a, grounded_b],
     )
     assert len(merged.decisions) == 1
     assert merged.decisions[0].segment_ids == ["s1", "s3"]
@@ -215,15 +216,11 @@ def test_single_window_stays_on_the_fast_path(monkeypatch):
 
 @respx.mock
 def test_over_budget_transcript_routes_through_windows_and_reduce(monkeypatch):
-    """Two over-budget sentences run as two map calls, then one reduce call."""
+    """An over-budget transcript runs as one map call per window, then one reduce call."""
     _ready_models(constants.DEFAULT_LLM_MODEL)
-    # Route to a lambda that always answers the merged reduce payload; the
-    # number of map calls equals the window count, asserted below.
-    route = _post_route().mock(
-        return_value=httpx.Response(
-            200, json=_envelope(_two_window_analysis("اعتماد الخطة", ["s1"], "ا"))
-        )
-    )
+    # The mock answers like a compliant model, citing the ids each prompt shows;
+    # the number of map calls equals the window count, asserted below.
+    route = _post_route().mock(side_effect=_cite_shown_ids_reply)
     # A tiny patched window budget holds one 280-word sentence per window. A
     # 280-word sentence estimates ~1152 tokens, so six of them (~6912 plus the
     # header) clear MAX_PROMPT_TOKENS and become six single-sentence windows.
@@ -231,13 +228,57 @@ def test_over_budget_transcript_routes_through_windows_and_reduce(monkeypatch):
     sentences = [_sentence(f"s{i + 1}", 280, float(i) * 3.0) for i in range(6)]
     result = GroqMinutesExtractor(_settings()).extract(META, sentences, SPEAKERS)
     # The merged reply came back; six map calls plus one reduce call.
-    assert result.title == "ا"
+    assert result.title == "اجتماع طويل"
     assert len(route.calls) == 7
     # The reduce message carries the window summaries, never the transcript.
     last = json.loads(route.calls[-1].request.content)
     user = last["messages"][1]["content"]
     assert "[w1]" in user and "[w6]" in user
     assert "DECISION" in user
+
+
+def _cite_shown_ids_reply(request) -> httpx.Response:
+    """Answer like a compliant model: cite only the real ids the prompt shows."""
+    body = json.loads(request.content)
+    system = body["messages"][0]["content"]
+    user = body["messages"][1]["content"]
+    if "reducer" in system:
+        cited = [
+            sid
+            for block in re.findall(r"DECISION \[([^\]]*)\]", user)
+            for sid in block.split(",")
+            if sid
+        ]
+        decisions = [{"text": "اعتماد الخطة", "segment_ids": sorted(set(cited))}] if cited else []
+    else:
+        shown = re.findall(r"^\[(s\d+)\]", user, flags=re.MULTILINE)
+        decisions = [{"text": "اعتماد الخطة", "segment_ids": [shown[-1]]}]
+    payload = {
+        "title": "اجتماع طويل",
+        "attendees": ["المدير"],
+        "topics": [],
+        "decisions": decisions,
+        "directives": [],
+        "tasks": [],
+    }
+    return httpx.Response(200, json=_envelope(json.dumps(payload, ensure_ascii=False)))
+
+
+@respx.mock
+def test_later_window_citation_survives_into_the_merge(monkeypatch):
+    """A compliant model cites the real ids a later window shows; they must survive.
+
+    Regression: the retired remap assumed each window renumbered from s1 and
+    mapped a later window's real ids to nothing, so every item extracted past
+    the first window was culled by the citation guard.
+    """
+    _ready_models(constants.DEFAULT_LLM_MODEL)
+    _post_route().mock(side_effect=_cite_shown_ids_reply)
+    monkeypatch.setattr(constants, "WINDOW_TOKEN_BUDGET", 1200)
+    sentences = [_sentence(f"s{i + 1}", 280, float(i) * 3.0) for i in range(6)]
+    result = GroqMinutesExtractor(_settings()).extract(META, sentences, SPEAKERS)
+    cited = {sid for decision in result.decisions for sid in decision.segment_ids}
+    assert "s6" in cited  # the last window's real id survived grounding and reduce
 
 
 # ---------- the reduce-overflow guard ----------
@@ -308,6 +349,18 @@ def test_realistic_long_meeting_packs_into_windows_that_pass():
         assert (
             _tokens_of(window) + constants.PROMPT_OVERHEAD_EST_TOKENS < constants.MAX_PROMPT_TOKENS
         )
+
+
+def test_reduce_overhead_constant_covers_the_actual_prompt():
+    """The overhead constant must never fall behind the real reduce prompt size."""
+    actual = prompts.estimate_tokens(prompts.REDUCE_SYSTEM_PROMPT)
+    assert actual <= constants.REDUCE_PROMPT_OVERHEAD_EST_TOKENS
+
+
+def test_reduce_prompt_anchors_the_lowercase_schema():
+    """The reduce model must see the JSON contract, not only uppercase markers."""
+    for token in ("segment_ids", '"title"', '"summary"', '"description"'):
+        assert token in prompts.REDUCE_SYSTEM_PROMPT
 
 
 def test_reduce_max_input_plus_overhead_stays_under_max_prompt_tokens():

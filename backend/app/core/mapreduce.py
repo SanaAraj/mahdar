@@ -22,7 +22,7 @@ def analyze_long(
     reduce_once: Callable[[list[str]], Analysis],
     job_id: str | None = None,
 ) -> Analysis:
-    """Extract each window, remap its ids, then reduce the window summaries."""
+    """Extract each window, ground its cited ids, then reduce the window summaries."""
     jlog = job_log(log, job_id) if job_id else log
     windows = split_into_windows(sentences)
     jlog.info("map-reduce over %d window(s) of %d sentences", len(windows), len(sentences))
@@ -37,7 +37,7 @@ def analyze_long(
             len(window),
             time.monotonic() - started,
         )
-        partials.append(_remap_window_ids(part, window))
+        partials.append(_ground_window_ids(part, window))
     summaries = [_window_summary(part) for part in partials]
     merged = reduce_once(_cap_summaries(summaries, jlog))
     return _merge_fallback(merged, partials)
@@ -59,28 +59,32 @@ def _cap_summaries(summaries: list[str], jlog=None) -> list[str]:
     return summaries
 
 
-def _remap_window_ids(part: Analysis, window: list[Sentence]) -> Analysis:
-    """Remap each window's local s1..sN ids to the real global sentence ids."""
-    mapping = {f"s{i}": sentence.id for i, sentence in enumerate(window, start=1)}
+def _ground_window_ids(part: Analysis, window: list[Sentence]) -> Analysis:
+    """Keep only cited ids that name a sentence of this window, in cited order.
+
+    Windows keep their real global sentence ids on the wire and the window
+    prompt instructs the model to cite only the ids it shows, so grounding is
+    a filter against this window's id set and never a renumbering.
+    """
+    valid = {sentence.id for sentence in window}
 
     def fix(ids: list[str]) -> list[str]:
         seen: list[str] = []
         for raw in ids:
-            real = mapping.get(raw)
-            if real and real not in seen:
-                seen.append(real)
+            if raw in valid and raw not in seen:
+                seen.append(raw)
         return seen
 
-    def remap(items: list[SegmentCited]) -> list:
+    def ground(items: list[SegmentCited]) -> list:
         return [item.model_copy(update={"segment_ids": fix(item.segment_ids)}) for item in items]
 
     return part.model_copy(
         update={
             "attendees": list(part.attendees),
-            "topics": remap(part.topics),
-            "decisions": remap(part.decisions),
-            "directives": remap(part.directives),
-            "tasks": remap(part.tasks),
+            "topics": ground(part.topics),
+            "decisions": ground(part.decisions),
+            "directives": ground(part.directives),
+            "tasks": ground(part.tasks),
         }
     )
 
