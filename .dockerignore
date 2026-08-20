@@ -1,0 +1,15 @@
+.git
+# Secrets never enter the build context. .env is mounted at runtime via
+# docker-compose env_file; no env file or backup belongs in the image.
+.env
+.env.*
+!.env.example
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+docs/
+samples/
+tests/
+.dockerignore
