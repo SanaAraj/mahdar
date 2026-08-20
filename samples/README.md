@@ -1,36 +1,22 @@
 # samples/
 
-This folder is for local evaluation only. Its contents are never committed to
-version control and never redistributed with the project.
+Two short Gulf-dialect news clips ship with the repository, each beside a
+human reference transcript (`*.reference.txt`) for accuracy comparison:
 
-## What is here
+- `news_clip_low_income.mp3` (14 s): a commentator on subsidy reform and
+  low-income households.
+- `news_clip_sports_strategy.mp3` (15 s): a commentator on team selection
+  strategy across a tournament.
 
-`samples/external/` is gitignored. It holds short clips used to judge
-transcription, diarization, and analysis quality against real speech. Nothing
-in this directory ships with the repository.
+Upload either one in the running app, or export a meeting and diff the
+transcript against the reference file.
 
-## Provenance and licensing
+## External-only clips
 
-The current external set was drawn from two corpora for evaluation and is kept
-out of git:
-
-- Egyptian_Arabic_Conversational_Speech_Corpus (Beijing Magic Data Technology
-  Co., Ltd.). Two near-telephone conversational channels of the same call,
-  trimmed to 90 seconds at a content-rich offset. Licensed for personal,
-  non-commercial use only; no part may be distributed or reproduced.
-- A small set of Gulf-dialect clips from `~/Downloads/AR` (with human reference
-  transcripts, kept beside each derived clip as `*.reference.txt` for
-  accuracy comparison).
-- `meeting_21.m4a` from `~/Downloads/21.m4a`, a recorded online meeting trimmed
-  to a 90-second highlight for a content-rich analysis read.
-
-Because these clips are licensed for evaluation and not for redistribution,
-the folder is excluded by `.gitignore` and must never be committed.
-
-## Dropping in your own files
-
-Place any `webm`, `ogg`, `wav`, `mp3`, `m4a`, or `mp4` clip in
-`samples/external/`. To judge the pipeline against it, upload the clip in the
-running app (or point a local evaluation run at the folder). There is no
-required naming scheme; keep clips short enough to fit within the LLM prompt
-budget (under a few hundred transcript sentences).
+`samples/external/` is gitignored and never redistributed. It holds extra
+evaluation clips that must stay local: two channels of an Egyptian telephone
+conversation from the Egyptian_Arabic_Conversational_Speech_Corpus (licensed
+for personal, non-commercial use; no distribution), and one recorded online
+meeting trimmed to a 90-second highlight. Drop any extra `webm`, `ogg`,
+`wav`, `mp3`, `m4a`, or `mp4` clip in there to try it locally; keep clips
+short enough to fit within the LLM prompt budget.

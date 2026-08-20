@@ -111,7 +111,8 @@ Be honest about what offline costs before relying on it for an evaluation:
   runs both models on CPU and is noticeably slower on the same clip.
 - **Dialect quality is lower.** The local STT (`large-v3-turbo` at int8) and a
   small local chat model handle Modern Standard Arabic better than the two
-  Gulf/Egyptian dialect clips in `samples/`; expect fewer and looser
+  Gulf-dialect clips in `samples/` (the external Egyptian channel is worse
+  still); expect fewer and looser
   extractions than the cloud path on dialect-heavy audio.
 
 This mode exists because the end environment may be fully closed, and a
@@ -348,7 +349,8 @@ in the tracked tree, then writes `mahdar.zip`.
 ## Evaluation notes
 
 This section compares two extraction system prompts against the live key on the two
-Gulf-dialect news clips and one Egyptian channel in `samples/external/`: the
+Gulf-dialect news clips in `samples/` and one Egyptian channel from the local
+external set: the
 current English-instructions prompt (rules in English, Arabic only as embedded
 exemplars and as data) against the retired all-Arabic prompt reconstructed as a
 test-only fixture. Each clip was transcribed once, then extracted once under
