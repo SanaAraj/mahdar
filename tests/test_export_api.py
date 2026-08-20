@@ -162,3 +162,14 @@ def test_export_after_failed_analysis_still_serves_transcript(
     assert len(resp.json()["sentences"]) == 2
     docx = client.get(f"/api/meetings/{job_id}/export/docx")
     assert docx.status_code == 200 and docx.content[:2] == b"PK"
+
+
+def test_export_of_an_unfinished_job_is_rejected(client: TestClient):
+    """Exports exist only for a finished meeting; a mid-run job answers 409."""
+    from backend.app import strings
+
+    client.app.state.registry.create("aaaabbbbcccc")  # a job that never ran
+    for kind in ("json", "docx"):
+        resp = client.get(f"/api/meetings/aaaabbbbcccc/export/{kind}")
+        assert resp.status_code == 409
+        assert resp.json()["error_ar"] == strings.resolve("audio.not_ready")

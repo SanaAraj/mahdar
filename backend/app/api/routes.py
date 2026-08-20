@@ -121,10 +121,17 @@ def reanalyze(request: Request, job_id: str) -> dict[str, str]:
     return {"id": job.id}
 
 
+def _require_done(job: MeetingJob) -> None:
+    """Exports exist only for a finished meeting; anything else is not ready."""
+    if job.status is not JobStatus.DONE:
+        raise MessageError(409, "audio.not_ready")
+
+
 @router.get("/meetings/{job_id}/export/json")
 def export_json(request: Request, job_id: str) -> Response:
     """The canonical public meeting document as a JSON attachment."""
     job = _get_job(request, job_id)
+    _require_done(job)
     body = build_export(job).model_dump_json().encode("utf-8")
     return Response(
         content=body,
@@ -137,6 +144,7 @@ def export_json(request: Request, job_id: str) -> Response:
 def export_docx(request: Request, job_id: str) -> FileResponse:
     """Render the minutes DOCX on demand and serve it as an attachment."""
     job = _get_job(request, job_id)
+    _require_done(job)
     path = _registry(request).job_dir(job.id) / "export.docx"
     # A unique temp name per request, so concurrent renders never collide on
     # the same .tmp file; each then atomically swaps into the shared path.
