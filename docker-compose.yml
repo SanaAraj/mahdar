@@ -16,7 +16,7 @@ services:
   # LLM_PROVIDER=local in .env point the app at it. The command serves, pulls
   # the configured model once if absent, then waits on the server.
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.15
     profiles: ["local"]
     volumes:
       - ollama-data:/root/.ollama
