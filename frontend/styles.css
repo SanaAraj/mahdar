@@ -1,0 +1,1183 @@
+/* bundled Arabic font */
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/IBMPlexSansArabic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/IBMPlexSansArabic-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/IBMPlexSansArabic-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/IBMPlexSansArabic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* design tokens */
+:root {
+  --color-bg: #f7f6f2;
+  --color-surface: #ffffff;
+  --color-ink: #1d1d1b;
+  --color-ink-soft: #5c5a54;
+  --color-line: #e3e1d9;
+  --color-line-soft: #edebe3; /* internal dividers: subtler than the frame line */
+  --color-accent: #14691b;
+  --color-accent-dark: #0e5414;
+  --color-accent-soft: #e7f0e8;
+  --color-accent-ring: #dbe9dd;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbeae8;
+  --color-time-bg: #f0efe9; /* timestamp chip, a step under the white surface */
+  --color-warn-soft: #fbeee0;
+  --color-warn-ink: #8a5a26;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --radius: 12px; /* buttons, chips, small containers */
+  --radius-lg: 16px; /* surfaces: card frame, tiles, rows */
+  --radius-md: 12px;
+  --shadow: 0 1px 3px rgba(29, 29, 27, 0.08);
+  --shadow-card: 0 2px 6px rgba(29, 29, 27, 0.05), 0 10px 28px rgba(29, 29, 27, 0.06);
+  --width-card: 540px;
+  --width-stage: 480px; /* recording, uploading, processing, failed frames */
+  --record-size: 148px;
+  --record-halo: 14px;
+  --skim-toggle-size: 40px;
+  --skim-tick-height: 30px;
+  --skim-tick-gap: 2px;
+  --font-body: "IBM Plex Sans Arabic", "Segoe UI", system-ui, "Noto Naskh Arabic", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  line-height: 1.7;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A component display rule (e.g. .analysis-banner{display:flex}) appears later
+   in source order at equal specificity, so it must not win over the hidden
+   state. One important rule guarantees every banner hides until setBanner
+   gives it a message. */
+[hidden] {
+  display: none !important;
+}
+
+.page {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-6);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The header spans the full viewport; the centered column begins below it. */
+.header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+@media (max-width: 620px) {
+  .header {
+    padding: var(--space-2);
+  }
+  .header-row {
+    align-items: flex-start;
+  }
+  .header-actions {
+    margin-inline-start: auto;
+  }
+}
+
+/* The brand block is a button: it resets the page to the fresh recording
+   state, so it needs the cursor and the same focus ring as real buttons. */
+#brand-home {
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+#brand-home:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+
+.brand-name {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.brand-tag {
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  margin: 0;
+}
+
+/* Only the short centered views sit in the vertical middle; the long result
+   view starts at the top and simply grows the page. */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.view {
+  display: none;
+  text-align: center;
+}
+
+/* Short centered views sit in the vertical middle and keep their content
+   glued; see `.card-frame` for the shell around them. view-done is long, so it
+   flows from the top and simply grows the page. */
+.view:not(.view-done) {
+  margin-block: auto;
+}
+
+.view.is-active {
+  display: block;
+}
+
+/* The shared white frame around every short centered view. The idle card reuses
+   it, the others use --stage for a reduced width. */
+.card-frame {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  max-width: var(--width-card);
+  margin: var(--space-6) auto var(--space-4);
+  padding: clamp(var(--space-5), 7vw, var(--space-6)) clamp(var(--space-3), 6vw, var(--space-6));
+}
+
+.card-frame--stage {
+  max-width: var(--width-stage);
+}
+
+.view-title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.view-sub {
+  color: var(--color-ink-soft);
+  font-size: 15px;
+  margin: 0 0 var(--space-3);
+}
+
+/* idle view */
+.idle-title {
+  font-size: clamp(26px, 4vw, 32px);
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+  line-height: 1.3;
+}
+
+.idle-sub {
+  color: var(--color-ink-soft);
+  font-size: 17px;
+  margin: 0;
+}
+
+.idle-record-area {
+  padding: var(--space-4) 0 var(--space-1);
+}
+
+.idle-record-hint {
+  color: var(--color-ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+  margin: var(--space-3) 0 0;
+}
+
+.idle-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+.idle-divider::before,
+.idle-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.idle-divider span {
+  padding: 2px 10px;
+  background: var(--color-bg);
+  border-radius: 999px;
+}
+
+.upload-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: var(--color-accent-ring);
+  border: 1.5px dashed var(--color-line);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  padding: var(--space-3) var(--space-2);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.upload-zone:hover,
+#file-input:focus-visible + .upload-zone {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.upload-zone .icon {
+  color: var(--color-accent);
+  width: 14px;
+  height: 14px;
+}
+
+.upload-zone-text {
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.upload-formats {
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  margin: var(--space-2) 0 0;
+}
+
+
+/* buttons */
+.btn {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+/* Inline SVG glyphs inside buttons share one size. */
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* visible focus ring on every interactive element: keyboard first */
+.btn:focus-visible,
+.record-btn:focus-visible,
+.upload-zone:focus-visible,
+.skim-toggle:focus-visible,
+.skim-tick:focus-visible,
+a.btn:focus-visible,
+.speaker-chip-label:focus-visible,
+.speaker-chip-play:focus-visible,
+.speaker-chip-input:focus-visible,
+.sentence-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* export links are anchors; the focus ring must not inherit the old form habit */
+a.btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.record-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.record-btn:disabled svg {
+  color: var(--color-ink-soft);
+}
+
+.record-btn:disabled:hover {
+  transform: none;
+  box-shadow: 0 0 0 var(--record-halo) var(--color-accent-ring);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-dark);
+}
+
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-dark);
+}
+
+/* record button: oversized bullseye with a soft halo behind it */
+.record-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--record-size);
+  height: var(--record-size);
+  margin: 0 auto;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 0 var(--record-halo) var(--color-accent-ring);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+}
+
+.record-btn svg {
+  width: calc(var(--record-size) * 0.34);
+  height: calc(var(--record-size) * 0.34);
+}
+
+.record-btn:hover {
+  transform: scale(1.03);
+  background: var(--color-accent-dark);
+  box-shadow: 0 0 0 calc(var(--record-halo) + 4px) var(--color-accent-ring);
+}
+
+.record-btn:active {
+  transform: scale(0.97);
+}
+
+/* recording view: the meter becomes a living disc that breathes with the mic
+   level (scaled from app.js), green like every other primary state */
+.rec-stage {
+  padding: var(--space-3) 0;
+}
+
+.rec-disc {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto var(--space-3);
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 var(--record-halo) var(--color-accent-ring);
+  transform: scale(var(--pulse, 1));
+  transition: transform 0.12s linear;
+}
+
+.view.is-paused .rec-disc {
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  box-shadow: none;
+}
+
+/* paused: the pause button reads as "tappable to resume" */
+.view.is-paused #btn-pause {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+.rec-timer {
+  font-size: 32px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 var(--space-3);
+}
+
+.rec-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.rec-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+.rec-btn .icon {
+  width: 13px;
+  height: 13px;
+}
+
+@media (max-width: 480px) {
+  .rec-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* upload and processing */
+.progress {
+  width: 320px;
+  max-width: 100%;
+  height: 8px;
+  margin: 0 auto var(--space-3);
+  background: var(--color-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-accent);
+  transition: width 0.2s ease;
+}
+
+.stage-list {
+  list-style: none;
+  margin: var(--space-3) auto 0;
+  padding: 0;
+  max-width: 380px;
+  text-align: right;
+}
+
+.stage-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  color: var(--color-ink-soft);
+}
+
+.stage-item[data-state="running"] {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.stage-item[data-state="done"] {
+  color: var(--color-accent);
+}
+
+.stage-item[data-state="error"] {
+  color: var(--color-danger);
+}
+
+.stage-note {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-ink-soft);
+}
+
+.stage-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.stage-icon-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* player and sentences */
+.view-done {
+  text-align: right;
+}
+
+.done-head {
+  margin: var(--space-4) 0 var(--space-2);
+  text-align: center;
+}
+
+/* player: a real transport bar, sticky above the transcript */
+.player-bar.card-frame {
+  position: sticky;
+  top: var(--space-2);
+  z-index: 10;
+  max-width: none;
+  margin: var(--space-2) 0 var(--space-4);
+  padding: var(--space-2);
+}
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.skim-toggle {
+  flex-shrink: 0;
+  width: var(--skim-toggle-size);
+  height: var(--skim-toggle-size);
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.skim-toggle .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.skim-toggle:hover {
+  background: var(--color-accent-dark);
+}
+
+.skim-toggle:active {
+  transform: scale(0.92);
+}
+
+#player {
+  display: none;
+}
+
+.skim-strip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--skim-tick-gap);
+  min-width: 0;
+  height: var(--skim-toggle-size);
+}
+
+/* Ticks are propped to full height here and end-aligned in the clip so the
+   hit target stays large while the glyph keeps its waveform-like look. */
+.skim-tick {
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+}
+
+.skim-tick::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: var(--skim-tick-height);
+  background: var(--color-line);
+  border-radius: 2px;
+  transition: background 0.15s ease;
+}
+
+.skim-tick.is-past::before {
+  background: var(--color-accent);
+}
+
+.skim-tick:hover::before {
+  background: var(--color-accent-dark);
+}
+
+.skim-time {
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* stats strip: three equal tiles of counts */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.stat-tile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-2);
+  text-align: center;
+}
+
+.btn.header-action {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid var(--color-line);
+}
+
+.btn.header-action[download] {
+  text-decoration: none;
+}
+
+#export-docx.btn.header-action {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+#export-docx.btn.header-action:hover {
+  background: var(--color-accent-dark);
+}
+
+#export-json.btn.header-action:hover,
+#btn-new-meeting.btn.header-action:hover {
+  border-color: var(--color-accent);
+}
+
+.stat-value {
+  display: block;
+  color: var(--color-accent);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: var(--space-1);
+}
+
+.stat-label {
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .stats-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sentence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* speakers bar */
+.speakers-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  padding: var(--space-1) 0;
+}
+
+.speaker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chip-bg);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.speaker-chip-label {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--chip-ink);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.speaker-chip-label:hover {
+  text-decoration: underline;
+}
+
+.speaker-chip-input {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-ink);
+  border: 1px solid var(--chip-ring, var(--color-accent));
+  border-radius: 999px;
+  padding: 4px 10px;
+  min-width: 120px;
+}
+
+.speaker-chip-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--chip-ring);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.speaker-chip-play svg {
+  width: 12px;
+  height: 12px;
+}
+
+.speaker-chip-error {
+  font-size: 12px;
+  color: var(--color-danger);
+  padding-inline-start: 6px;
+}
+
+.speaker-chip-hint {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  padding-inline-end: 8px;
+  white-space: nowrap;
+}
+
+.speaker-chip:focus-within {
+  outline: 2px solid var(--chip-ring);
+  outline-offset: 2px;
+}
+
+/* speaker tag inside a sentence row */
+.sentence-speaker {
+  flex-shrink: 0;
+}
+
+.speaker-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--chip-ink);
+  background: var(--chip-bg);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.sentence-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 10px var(--space-2);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.sentence-row:hover {
+  background: var(--color-accent-soft);
+}
+
+.sentence-row.is-active {
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.sentence-time {
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  background: var(--color-time-bg);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sentence-text {
+  margin: 0;
+  font-size: 15px;
+}
+
+/* Seconds + a seek icon: hovering the row reveals the corner arrow. */
+.sentence-seek {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sentence-play {
+  width: 12px;
+  height: 12px;
+  color: var(--color-accent);
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.sentence-row:hover .sentence-play,
+.sentence-row.is-active .sentence-play {
+  opacity: 1;
+}
+
+/* failure */
+.fail-message {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  max-width: 480px;
+  margin: 0 auto var(--space-3);
+}
+
+/* footer: the pipeline shows the app's stages, arrow-separated */
+.footer {
+  text-align: center;
+  color: var(--color-ink-soft);
+  border-top: 1px solid var(--color-line);
+  padding: var(--space-3) var(--space-2);
+  margin-top: auto;
+}
+
+.footer p {
+  margin: 0;
+}
+
+.pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+/* Plain arrows (U+2190) are not bidi-mirrored, so the source glyph is the
+   rendered one: it must point with the RTL flow, from each stage to the next. */
+.pipeline-arrow {
+  color: var(--color-line);
+}
+
+/* result page sections */
+.done-section {
+  margin-top: var(--space-5);
+}
+
+/* A thin neutral rule plus a short accent stub: calmer than the old full-
+   width green underline. */
+.section-title {
+  position: relative;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: var(--space-1);
+}
+
+.section-title::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  inset-inline-start: 0;
+  width: 48px;
+  border-bottom: 2px solid var(--color-accent);
+}
+
+.minutes-heading {
+  margin: 0 0 var(--space-2);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.meet-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-count {
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
+
+.ready-badge {
+  display: inline-block;
+  background: var(--color-accent-ring);
+  color: var(--color-accent-dark);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.minutes-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-3);
+  font-size: 14px;
+}
+
+.minutes-meta dt {
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+
+.minutes-meta dd {
+  margin: 0;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+}
+
+.minutes-attendees {
+  margin-bottom: var(--space-3);
+}
+
+.attendee-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 0;
+  margin: var(--space-1) 0 0;
+}
+
+.attendee-chips li {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.minutes-group {
+  margin-bottom: var(--space-3);
+}
+
+.minutes-subhead {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-1);
+}
+
+.minutes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.minutes-list li {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+}
+
+.minutes-list li strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.minutes-summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  line-height: 1.7;
+}
+
+.minutes-list > li > span {
+  font-size: 14px;
+  display: inline;
+}
+
+.minutes-plain {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note-empty {
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* citation chips removed with the s-id listing (see DECISIONS, 2026-08-20) */
+/* tasks list */
+.tasks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* A true square checkbox for tasks, calmer against the badge colors. */
+.task-box {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  border: 1.5px solid var(--color-line);
+  border-radius: 5px;
+}
+
+.task-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.task-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.task-due {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.priority-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.priority-badge[data-level="high"] {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.priority-badge[data-level="medium"] {
+  background: var(--color-warn-soft);
+  color: var(--color-warn-ink);
+}
+
+.priority-badge[data-level="low"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+
+/* analysis-failure banner */
+.analysis-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.analysis-banner-text {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 14px;
+}
