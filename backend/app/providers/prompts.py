@@ -177,12 +177,15 @@ WINDOW_SCOPE_LINE = (
     "from the sentences shown here and cite only the ids shown here."
 )
 
-# The reduce prompt: English-only rules without Arabic exemplars, so it never
-# becomes a chartered Arabic location; the only Arabic it carries is the window
-# summaries it is given as data. It may merge obvious per-window duplicates and
-# rewrite the title and the topic summaries, but never the decision, directive,
-# or task wording, so a reduction cannot fabricate a citation.
-REDUCE_SYSTEM_PROMPT = """You are an Arabic meeting-minutes reducer. The user message holds, one
+# The reduce prompt: English rules that share the extraction prompt's schema
+# example, so both calls anchor on one JSON contract. Without the example the
+# reduce model mirrored the uppercase block markers of its input (TITLE, TOPIC)
+# as JSON keys, observed live on a 37.5-minute recording. It may merge obvious
+# per-window duplicates and rewrite the title and the topic summaries, but
+# never the decision, directive, or task wording, so a reduction cannot
+# fabricate a citation.
+REDUCE_SYSTEM_PROMPT = (
+    """You are an Arabic meeting-minutes reducer. The user message holds, one
 block per portion of a longer meeting, the minutes extracted from each portion:
 a title, the attendees, and the summaries of its topics, decisions, directives,
 and tasks with the segment ids each rests on. No transcript lines are given.
@@ -199,10 +202,19 @@ Your job is to merge the portions into one Arabic minutes object. Rules:
 3. attendees is the union of every portion's attendees, without duplicates.
 4. Never introduce a topic, decision, directive, task, or attendee that no
    portion named. The union of the portions is the whole meeting.
-5. Return JSON only, with the exact schema of the portions, with no text
-   outside the object and no code fences. Every string value stays in Arabic,
-   exactly as the portions carry it.
+5. Return JSON only, matching the schema below, with no text outside the
+   object and no code fences. Every string value stays in Arabic, exactly as
+   the portions carry it.
+6. Field names are exactly the lowercase English names of the schema below.
+   The uppercase markers of the portion blocks (TITLE, ATTENDEES, TOPIC,
+   DECISION, DIRECTIVE, TASK) label the input and are never JSON keys. Every
+   topic carries title, summary, and segment_ids; every decision and directive
+   carries text and segment_ids; every task carries description and
+   segment_ids.
+
 """
+    + _SCHEMA_EXAMPLE
+)
 
 
 def build_reduce_message(window_summaries: list[str]) -> str:

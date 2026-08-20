@@ -85,11 +85,11 @@ SAFETY_MARGIN_TOKENS: int = 370
 WINDOW_TOKEN_BUDGET: int = (
     MAX_PROMPT_TOKENS - PROMPT_OVERHEAD_EST_TOKENS - SAFETY_MARGIN_TOKENS
 )  # = 5000: one map window: transcript + shared prompt stay under MAX
-# The reduce call's own system prompt (English-only rules, no exemplars).
-REDUCE_PROMPT_OVERHEAD_EST_TOKENS: int = 1360  # estimate_tokens(REDUCE_SYSTEM_PROMPT)
+# The reduce call's own system prompt, including the shared schema example.
+REDUCE_PROMPT_OVERHEAD_EST_TOKENS: int = 1740  # >= estimate_tokens(REDUCE_SYSTEM_PROMPT)
 REDUCE_TOKEN_BUDGET: int = (
     MAX_PROMPT_TOKENS - REDUCE_PROMPT_OVERHEAD_EST_TOKENS - SAFETY_MARGIN_TOKENS
-)  # = 6820: reduce input holds window summaries only, never the transcript
+)  # = 6440: reduce input holds window summaries only, never the transcript
 MAP_OVERLAP_MIN_TOKENS: int = 3  # minimum shared content tokens to fuse two mapped items
 MAP_TITLE_OVERLAP_MAX_TOKENS: int = (
     2  # a heading-length summary (<= this) fuses on full containment

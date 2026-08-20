@@ -20,6 +20,7 @@ from backend.app.providers.llm_groq import (
     _json_object,
     strip_reasoning,
 )
+from backend.app.providers.llm_parse import normalize_schema_keys
 
 META = MeetingMeta(date_gregorian="2026-08-18", date_hijri="1448-03-05", duration_s=125.0)
 SENTENCES = [
@@ -206,6 +207,63 @@ def test_json_object_rejects_garbage(content: str):
         _json_object(content)
 
 
+# ---------- the schema key repair ----------
+
+
+def test_normalize_schema_keys_repairs_uppercase_field_names():
+    """The observed reduce failure: uppercase keys mirrored from the block markers."""
+    raw = {
+        "TITLE": "محضر",
+        "ATTENDEES": ["أحمد"],
+        "TOPICS": [{"TITLE": "الخطة", "SUMMARY": "ملخص", "SEGMENT_IDS": ["s1"]}],
+        "DECISIONS": [],
+        "DIRECTIVES": [],
+        "TASKS": [{"DESCRIPTION": "رفع التقرير", "DUE": {"RAW": "غدًا"}, "SEGMENT_IDS": ["s2"]}],
+    }
+    fixed = normalize_schema_keys(raw)
+    analysis = Analysis.model_validate(fixed)
+    assert analysis.title == "محضر"
+    assert analysis.topics[0].summary == "ملخص"
+    assert analysis.tasks[0].due.raw == "غدًا"
+    assert analysis.tasks[0].segment_ids == ["s2"]
+
+
+def test_normalize_schema_keys_never_touches_values_or_unknown_keys():
+    raw = {"TITLE": "TITLE", "extra_KEY": 1, "topics": [{"title": "TOPICS"}]}
+    fixed = normalize_schema_keys(raw)
+    assert fixed["title"] == "TITLE"  # the value keeps its case
+    assert fixed["extra_KEY"] == 1  # unknown keys stay untouched
+    assert fixed["topics"][0]["title"] == "TOPICS"
+
+
+def test_normalize_schema_keys_exact_field_wins_over_a_cased_duplicate():
+    raw = {"title": "الصحيح", "TITLE": "مكرر"}
+    fixed = normalize_schema_keys(raw)
+    assert fixed["title"] == "الصحيح"
+    assert fixed["TITLE"] == "مكرر"  # left alone, ignored by the schema
+
+
+@respx.mock
+def test_uppercase_reply_repairs_without_a_correction_roundtrip():
+    """A first reply with uppercase keys validates deterministically in one call."""
+    _ready_models(constants.DEFAULT_LLM_MODEL)
+    payload = {
+        "TITLE": "متابعة خطة العمل",
+        "ATTENDEES": ["المدير"],
+        "TOPICS": [{"TITLE": "الخطة", "SUMMARY": "استعرضنا الخطة", "SEGMENT_IDS": ["s1"]}],
+        "DECISIONS": [],
+        "DIRECTIVES": [],
+        "TASKS": [],
+    }
+    route = _ready_posts(
+        httpx.Response(200, json=_envelope(json.dumps(payload, ensure_ascii=False)))
+    )
+    result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
+    assert result.title == "متابعة خطة العمل"
+    assert result.topics[0].summary == "استعرضنا الخطة"
+    assert len(route.calls) == 1  # repaired before validation, no second call spent
+
+
 # ---------- the model preflight ----------
 
 
@@ -224,6 +282,41 @@ def test_preflight_passes_for_a_present_model():
     _ready_models(constants.DEFAULT_LLM_MODEL)
     _ready_posts(httpx.Response(200, json=_envelope(ANALYSIS_JSON)))
     result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
+    assert result.title == "متابعة خطة العمل"
+
+
+@respx.mock
+def test_preflight_failure_skips_the_check_and_is_not_cached():
+    """A failed listing means unknown: analysis proceeds and the next call refetches."""
+    models_route = respx.get(constants.GROQ_API_BASE + constants.MODELS_API_PATH).mock(
+        side_effect=[
+            httpx.Response(500, text="upstream down"),
+            httpx.Response(200, json=_models_payload(constants.DEFAULT_LLM_MODEL)),
+        ]
+    )
+    _ready_posts(
+        httpx.Response(200, json=_envelope(ANALYSIS_JSON)),
+        httpx.Response(200, json=_envelope(ANALYSIS_JSON)),
+        httpx.Response(200, json=_envelope(ANALYSIS_JSON)),
+    )
+    extractor = GroqMinutesExtractor(_settings())
+    assert extractor.extract(META, SENTENCES, SPEAKERS).title == "متابعة خطة العمل"
+    assert extractor.extract(META, SENTENCES, SPEAKERS).title == "متابعة خطة العمل"
+    extractor.extract(META, SENTENCES, SPEAKERS)
+    # One failed fetch, one successful fetch cached for the rest of the process.
+    assert len(models_route.calls) == 2
+
+
+@respx.mock
+def test_preflight_empty_listing_never_claims_retirement():
+    """An empty listing is unknown, not proof the configured model retired."""
+    respx.get(constants.GROQ_API_BASE + constants.MODELS_API_PATH).mock(
+        return_value=httpx.Response(200, json={"data": []})
+    )
+    _ready_posts(httpx.Response(200, json=_envelope(ANALYSIS_JSON)))
+    result = GroqMinutesExtractor(_settings(model="some-unlisted-model")).extract(
+        META, SENTENCES, SPEAKERS
+    )
     assert result.title == "متابعة خطة العمل"
 
 

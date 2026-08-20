@@ -14,7 +14,22 @@ from pydantic import ValidationError
 
 from backend.app import constants
 from backend.app.core.errors import AnalysisError
-from backend.app.core.models import Analysis
+from backend.app.core.models import (
+    Analysis,
+    Decision,
+    Directive,
+    DueDate,
+    TaskItem,
+    Topic,
+)
+
+# Every field name of the analysis schema, at every nesting level. Derived from
+# the pydantic models so a schema change can never leave this set stale.
+_SCHEMA_FIELDS: frozenset[str] = frozenset(
+    name
+    for model in (Analysis, Topic, Decision, Directive, TaskItem, DueDate)
+    for name in model.model_fields
+)
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
@@ -53,8 +68,34 @@ def content_from(resp) -> str:
         raise AnalysisError("analysis.failed", "missing choices content") from exc
 
 
+def normalize_schema_keys(value: object) -> object:
+    """Rename keys whose lowercase form is a schema field name; values never change.
+
+    A deterministic repair for a model that mirrors the uppercase markers of
+    the reduce input (TITLE, SEGMENT_IDS) as JSON keys. A key is renamed only
+    when its lowercase form is a known field and the dict does not already
+    carry that exact field, so a correctly-cased reply passes through as is.
+    """
+    if isinstance(value, dict):
+        renamed: dict = {}
+        for key, item in value.items():
+            new_key = key
+            if (
+                isinstance(key, str)
+                and key not in _SCHEMA_FIELDS
+                and key.lower() in _SCHEMA_FIELDS
+                and key.lower() not in value
+            ):
+                new_key = key.lower()
+            renamed[new_key] = normalize_schema_keys(item)
+        return renamed
+    if isinstance(value, list):
+        return [normalize_schema_keys(item) for item in value]
+    return value
+
+
 def json_object(content: str) -> dict:
-    """Strips reasoning blocks and fences, then parses the JSON object."""
+    """Strips reasoning blocks and fences, then parses and key-repairs the object."""
     text = strip_reasoning(content)
     fenced = _FENCE_RE.search(text)
     if fenced:
@@ -67,7 +108,7 @@ def json_object(content: str) -> dict:
             [{"type": "missing", "loc": (), "input": content[: constants.ERROR_SNIPPET_CHARS]}],
         )
     try:
-        return json.loads(text[start : end + 1])
+        return normalize_schema_keys(json.loads(text[start : end + 1]))
     except (ValueError, TypeError) as exc:
         raise ValidationError.from_exception_data(
             "Analysis",
