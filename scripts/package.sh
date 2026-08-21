@@ -1,7 +1,10 @@
 #!/bin/sh
 # Package the tracked tree into mahdar.zip, refusing to leak secrets.
-# Guard one: no tracked .env. Guard two: no gsk_ material anywhere tracked.
-# Only after both pass does git archive run, so the zip is the exact tree.
+# Guard one: no tracked .env. Guard two: no gsk_ or generic sk- key material
+# anywhere tracked; sk- is word-boundaried so ordinary words such as "task-"
+# never trip it. This script is excluded from that search because it has to
+# name the patterns it refuses. Only after both guards pass does git archive
+# run, so the zip is the exact tracked tree.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -11,8 +14,8 @@ if [ -n "$(git ls-files -- .env)" ]; then
   exit 1
 fi
 
-if git grep -l -I -n "gsk_" -- . >/dev/null 2>&1; then
-  echo "abort: gsk_ material found in the tracked tree; scrub it before packaging" >&2
+if git grep -l -I -E 'gsk_|(^|[^A-Za-z0-9_])sk-' -- . ':!scripts/package.sh' >/dev/null 2>&1; then
+  echo "abort: key material (gsk_ or sk-) found in the tracked tree; scrub it before packaging" >&2
   exit 1
 fi
 
