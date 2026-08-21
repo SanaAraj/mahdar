@@ -5,9 +5,9 @@ import pytest
 import respx
 
 from app.config import Settings
-from app.core.errors import AudioError
-from app.processing.audio import pick_split_points
-from app.providers import stt_groq
+from app.features.transcription import stt_groq
+from app.shared.audio import pick_split_points
+from app.shared.errors import AudioError
 
 
 def test_no_splits_under_max():

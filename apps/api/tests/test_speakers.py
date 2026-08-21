@@ -1,7 +1,7 @@
 """Tests for assigning speakers to sentences and building the speaker list."""
 
-from app.core.models import Sentence, Turn
-from app.processing.speakers import assign_speakers, build_speakers
+from app.features.transcription.speakers import assign_speakers, build_speakers
+from app.shared.models import Sentence, Turn
 
 
 def _sentence(id: str, start: float, end: float, text: str = "نص") -> Sentence:

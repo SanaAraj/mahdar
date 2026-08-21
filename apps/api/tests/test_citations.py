@@ -1,6 +1,7 @@
 """Tests for citation cleaning: the id guard and the content-overlap guard."""
 
-from app.core.models import (
+from app.features.analysis.citations import content_overlap, validate
+from app.shared.models import (
     Analysis,
     Decision,
     Directive,
@@ -9,7 +10,6 @@ from app.core.models import (
     TaskItem,
     Topic,
 )
-from app.processing.citations import content_overlap, validate
 
 SENTENCES = [
     Sentence(id="s1", start=0.0, end=2.0, text="نراجع خطة العمل اليوم."),
@@ -187,7 +187,7 @@ def test_hallucinated_model_date_with_null_raw_is_cleared():
     """No invention: when no date was said, the model may not fabricate one."""
     from datetime import date
 
-    from app.core.pipeline import apply_meeting_task_dates
+    from app.pipeline.pipeline import apply_meeting_task_dates
 
     task = TaskItem(
         description="مهمة",

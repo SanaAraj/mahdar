@@ -1,9 +1,9 @@
 """Cleanup guards against whisper silence hallucinations: no_speech filter and collapse."""
 
 from app import constants
-from app.core.models import Sentence, Word
-from app.processing.cleanup import collapse_repeated_sentences, filter_no_speech_words
-from app.processing.sentences import words_to_sentences
+from app.features.transcription.cleanup import collapse_repeated_sentences, filter_no_speech_words
+from app.features.transcription.sentences import words_to_sentences
+from app.shared.models import Sentence, Word
 
 from .factories import make_words
 

@@ -7,17 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.core.errors import AnalysisError
-from app.core.models import (
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.transcription.stt_groq import GroqTranscriber
+from app.main import create_app
+from app.shared.errors import AnalysisError
+from app.shared.models import (
     Analysis,
     Decision,
     DueDate,
     JobStatus,
     TaskItem,
 )
-from app.main import create_app
-from app.providers.llm_groq import GroqMinutesExtractor
-from app.providers.stt_groq import GroqTranscriber
 
 from .test_api import fake_transcribe
 

@@ -7,9 +7,13 @@ from fastapi.testclient import TestClient
 
 from app import strings
 from app.config import get_settings
-from app.core.errors import AnalysisError
-from app.core.jobs import JobRegistry
-from app.core.models import (
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.diarization.diarize_local import LocalDiarizer
+from app.features.transcription.stt_groq import GroqTranscriber
+from app.main import create_app
+from app.shared.errors import AnalysisError
+from app.shared.jobs import JobRegistry
+from app.shared.models import (
     Analysis,
     Decision,
     DueDate,
@@ -17,10 +21,6 @@ from app.core.models import (
     TaskItem,
     Turn,
 )
-from app.main import create_app
-from app.providers.diarize_local import LocalDiarizer
-from app.providers.llm_groq import GroqMinutesExtractor
-from app.providers.stt_groq import GroqTranscriber
 
 from .factories import make_words
 
@@ -206,8 +206,8 @@ def test_oversized_stream_is_cut_midway(tmp_path: Path):
     the first chunk past the cap and deletes the partial file, instead of
     draining the whole body. The cap here is one chunk smaller than the body.
     """
-    from app.api.routes import _save_upload
-    from app.core.errors import UploadError
+    from app.features.meetings.upload import save_upload as _save_upload
+    from app.shared.errors import UploadError
 
     chunk = 1024 * 1024
 
@@ -230,7 +230,7 @@ def test_oversized_stream_is_cut_midway(tmp_path: Path):
 
 def test_upload_exactly_at_cap_is_stored(tmp_path: Path):
     """A body whose size equals the cap is written to disk, not rejected."""
-    from app.api.routes import _save_upload
+    from app.features.meetings.upload import save_upload as _save_upload
 
     payload = b"\x01" * 64
     reads = iter([payload, b""])

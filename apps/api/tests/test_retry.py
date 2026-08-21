@@ -4,8 +4,8 @@ import httpx
 import pytest
 
 from app import constants
-from app.core.errors import TranscriptionError
-from app.providers.retry import RetryableError, retry_after_seconds, run_with_retries
+from app.shared.errors import TranscriptionError
+from app.shared.retry import RetryableError, retry_after_seconds, run_with_retries
 
 
 @pytest.fixture(autouse=True)

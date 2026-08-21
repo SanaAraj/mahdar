@@ -11,9 +11,9 @@ import httpx
 import pytest
 import respx
 
-from app.core.errors import AnalysisError
-from app.core.models import Analysis, MeetingMeta, Sentence, Speaker, Topic
-from app.providers.llm_local import LocalMinutesExtractor
+from app.features.analysis.llm_local import LocalMinutesExtractor
+from app.shared.errors import AnalysisError
+from app.shared.models import Analysis, MeetingMeta, Sentence, Speaker, Topic
 
 META = MeetingMeta(date_gregorian="2026-08-18", date_hijri="1448-03-05", duration_s=95.0)
 SENTENCES = [
@@ -157,6 +157,6 @@ def test_local_5xx_maps_to_unavailable():
 def test_has_arabic_output_guard_semantics_unchanged():
     # The guard the local path reuses treats an Arabic title as grounded.
     assert_ = Analysis(title="اجتماع", topics=[Topic(title="خطة", summary="مراجعة")])
-    from app.providers.llm_parse import has_arabic_output
+    from app.features.analysis.llm_parse import has_arabic_output
 
     assert has_arabic_output(assert_) is True

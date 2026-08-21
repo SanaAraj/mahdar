@@ -7,7 +7,7 @@ import respx
 
 from app import constants
 from app.config import Settings
-from app.providers.stt_groq import GroqTranscriber
+from app.features.transcription.stt_groq import GroqTranscriber
 
 _URL = constants.GROQ_API_BASE + constants.STT_API_PATH
 

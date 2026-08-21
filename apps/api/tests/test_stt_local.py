@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 
 from app.config import Settings
-from app.core.errors import TranscriptionError
-from app.core.models import Word
-from app.providers import stt_local
-from app.providers.stt_local import LocalTranscriber
+from app.features.transcription import stt_local
+from app.features.transcription.stt_local import LocalTranscriber
+from app.shared.errors import TranscriptionError
+from app.shared.models import Word
 
 
 class _FakeWord:

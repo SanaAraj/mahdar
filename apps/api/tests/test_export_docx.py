@@ -6,7 +6,8 @@ import zipfile
 from lxml import etree
 
 from app import strings
-from app.core.models import (
+from app.features.export import docx_build
+from app.shared.models import (
     Analysis,
     DueDate,
     ExportMeeting,
@@ -16,7 +17,6 @@ from app.core.models import (
     TaskItem,
     Topic,
 )
-from app.processing import docx_build
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 NS = {"w": W}

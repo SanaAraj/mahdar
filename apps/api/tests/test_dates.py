@@ -5,8 +5,8 @@ from datetime import date
 import pytest
 from hijridate import Gregorian, Hijri
 
-from app.processing import dates
-from app.processing.dates import normalize
+from app.features.analysis import dates
+from app.features.analysis.dates import normalize
 
 # Tuesday 18 August 2026, corresponding to 5 Rabi' al-Awwal 1448.
 ANCHOR = date(2026, 8, 18)
@@ -79,7 +79,7 @@ def test_hijri_to_gregorian_and_back():
 
 
 def test_gregorian_model_helper_round_trip():
-    from app.core.models import gregorian_hijri
+    from app.shared.models import gregorian_hijri
 
     assert gregorian_hijri("2026-08-18") == "1448-03-05"
     assert gregorian_hijri("ليس تاريخًا") is None

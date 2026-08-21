@@ -4,13 +4,13 @@ import logging
 
 import pytest
 
+from app import factory
 from app.config import Settings
-from app.core.errors import AnalysisError, TranscriptionError
-from app.providers import factory
-from app.providers.llm_groq import GroqMinutesExtractor
-from app.providers.llm_local import LocalMinutesExtractor
-from app.providers.stt_groq import GroqTranscriber
-from app.providers.stt_local import LocalTranscriber
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.analysis.llm_local import LocalMinutesExtractor
+from app.features.transcription.stt_groq import GroqTranscriber
+from app.features.transcription.stt_local import LocalTranscriber
+from app.shared.errors import AnalysisError, TranscriptionError
 
 
 def _settings(**overrides) -> Settings:
@@ -60,12 +60,12 @@ def test_unknown_llm_provider_raises_in_the_stage():
 
 
 def test_validate_providers_logs_unknown_values(caplog):
-    with caplog.at_level(logging.ERROR, logger="app.providers.factory"):
+    with caplog.at_level(logging.ERROR, logger="app.factory"):
         factory._validate_providers(_settings(stt_provider="bad", llm_provider="bad2"))
     assert "STT_PROVIDER" in caplog.text and "LLM_PROVIDER" in caplog.text
 
 
 def test_validate_providers_is_quiet_for_valid(caplog):
-    with caplog.at_level(logging.ERROR, logger="app.providers.factory"):
+    with caplog.at_level(logging.ERROR, logger="app.factory"):
         factory._validate_providers(_settings())
     assert caplog.text == ""

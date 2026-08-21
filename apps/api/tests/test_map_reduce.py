@@ -12,10 +12,12 @@ import respx
 
 from app import constants
 from app.config import Settings
-from app.core import analysis as core_analysis
-from app.core import mapreduce
-from app.core.errors import AnalysisError
-from app.core.models import (
+from app.features.analysis import citations, mapreduce, prompts
+from app.features.analysis import service as core_analysis
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.analysis.windows import sentence_estimated_tokens, split_into_windows
+from app.shared.errors import AnalysisError
+from app.shared.models import (
     Analysis,
     Decision,
     DueDate,
@@ -25,10 +27,6 @@ from app.core.models import (
     TaskItem,
     Topic,
 )
-from app.processing import citations
-from app.processing.analysis_windows import sentence_estimated_tokens, split_into_windows
-from app.providers import prompts
-from app.providers.llm_groq import GroqMinutesExtractor
 
 META = MeetingMeta(date_gregorian="2026-08-18", date_hijri="1448-03-05", duration_s=125.0)
 SPEAKERS = [Speaker(id="SPEAKER_00", label="المدير", first_start=0.0)]
@@ -52,8 +50,8 @@ def _tokens_of(sentences: list[Sentence]) -> int:
 
 @pytest.fixture(autouse=True)
 def _reset_llm_caches(monkeypatch):
-    monkeypatch.setattr("app.providers.llm_preflight._models_cache", None)
-    monkeypatch.setattr("app.providers.llm_groq._include_reasoning_supported", True)
+    monkeypatch.setattr("app.features.analysis.llm_preflight._models_cache", None)
+    monkeypatch.setattr("app.features.analysis.llm_groq._include_reasoning_supported", True)
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     yield
 

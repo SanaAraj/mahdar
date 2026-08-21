@@ -13,8 +13,12 @@ from fastapi.testclient import TestClient
 
 from app import strings
 from app.config import get_settings
-from app.core.jobs import JobRegistry
-from app.core.models import (
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.diarization.diarize_local import LocalDiarizer
+from app.features.transcription.stt_groq import GroqTranscriber
+from app.main import create_app
+from app.shared.jobs import JobRegistry
+from app.shared.models import (
     JobStatus,
     MeetingJob,
     Sentence,
@@ -22,10 +26,6 @@ from app.core.models import (
     StageState,
     Turn,
 )
-from app.main import create_app
-from app.providers.diarize_local import LocalDiarizer
-from app.providers.llm_groq import GroqMinutesExtractor
-from app.providers.stt_groq import GroqTranscriber
 
 from .test_api import fake_analysis
 

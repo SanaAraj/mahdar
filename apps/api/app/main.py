@@ -4,14 +4,14 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app import strings
-from app.api.routes import MessageError, router
+from app import factory, strings
+from app.api.deps import MessageError
+from app.api.router import router
 from app.config import get_settings
-from app.core.errors import MahdarError
-from app.core.jobs import JobRegistry
-from app.core.pipeline import Pipeline
-from app.providers import factory
-from app.providers.diarize_local import LocalDiarizer
+from app.features.diarization.diarize_local import LocalDiarizer
+from app.pipeline.pipeline import Pipeline
+from app.shared.errors import MahdarError
+from app.shared.jobs import JobRegistry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger(__name__)

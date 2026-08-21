@@ -1,4 +1,4 @@
-from app.core.models import Word
+from app.shared.models import Word
 
 DEFAULT_GAP_S = 0.1
 

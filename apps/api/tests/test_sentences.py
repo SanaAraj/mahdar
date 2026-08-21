@@ -1,7 +1,7 @@
 from app import constants
-from app.core.models import Turn
-from app.processing.sentences import words_to_sentences
-from app.processing.speakers import assign_speakers
+from app.features.transcription.sentences import words_to_sentences
+from app.features.transcription.speakers import assign_speakers
+from app.shared.models import Turn
 
 from .factories import make_words
 

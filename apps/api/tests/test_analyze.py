@@ -11,16 +11,16 @@ from pydantic import ValidationError
 
 from app import constants
 from app.config import Settings
-from app.core.errors import AnalysisError
-from app.core.models import Analysis, MeetingMeta, Sentence, Speaker, Topic
-from app.providers import prompts
-from app.providers.llm_groq import (
+from app.features.analysis import prompts
+from app.features.analysis.llm_groq import (
     GroqMinutesExtractor,
     _has_arabic_output,
     _json_object,
     strip_reasoning,
 )
-from app.providers.llm_parse import normalize_schema_keys
+from app.features.analysis.llm_parse import normalize_schema_keys
+from app.shared.errors import AnalysisError
+from app.shared.models import Analysis, MeetingMeta, Sentence, Speaker, Topic
 
 META = MeetingMeta(date_gregorian="2026-08-18", date_hijri="1448-03-05", duration_s=125.0)
 SENTENCES = [
@@ -68,8 +68,8 @@ def _models_payload(*ids: str) -> dict:
 @pytest.fixture(autouse=True)
 def _reset_llm_caches(monkeypatch):
     """Each test starts with a cold models cache and the reasoning flag on."""
-    monkeypatch.setattr("app.providers.llm_preflight._models_cache", None)
-    monkeypatch.setattr("app.providers.llm_groq._include_reasoning_supported", True)
+    monkeypatch.setattr("app.features.analysis.llm_preflight._models_cache", None)
+    monkeypatch.setattr("app.features.analysis.llm_groq._include_reasoning_supported", True)
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)  # deterministic sleep assertions
     yield
 

@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from app.core.errors import DiarizationError
-from app.providers import diarize_local
+from app.features.diarization import diarize_local
+from app.shared.errors import DiarizationError
 
 
 class _FakeTensor:
