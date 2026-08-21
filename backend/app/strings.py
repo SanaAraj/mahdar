@@ -1,25 +1,25 @@
-"""كل النصوص العربية الظاهرة للمستخدم من الخادم في مكان واحد.
+"""Every server-side Arabic string shown to the user, in one place.
 
-كل مفتاح هنا يرتبط بخطأ من core/errors.py عبر message_key، وتستدعي
-الواجهة resolve للحصول على النص العربي النهائي. لا تُستخدم هذه النصوص
-إلا في طبقة الحدود (الواجهة أو رسائل الأخطاء)، ولا تدخل في منطق الكود.
+Each key ties to an error from core/errors.py through message_key, and the
+boundary layer calls resolve for the final Arabic text. These strings appear
+only at the boundary (the UI and error messages), never in code logic.
 """
 
 MESSAGES: dict[str, str] = {
-    # تسميات مراحل المعالجة
+    # processing stage labels
     "stage.convert": "تحويل التسجيل",
     "stage.transcribe": "التفريغ الصوتي",
     "stage.diarize": "فصل المتحدثين",
     "stage.assemble": "تجميع الجمل",
     "stage.analyze": "تحليل المحضر",
-    # مرحلة فصل المتحدثين
+    # diarization stage
     "diarize.skipped": "أُنجز التفريغ دون فصل المتحدثين، أضف HF_TOKEN لتفعيله",
-    # إدارة المتحدثين عبر الواجهة
+    # speaker management from the UI
     "speaker.unknown": "أحد المتحدثين غير موجود في هذا الاجتماع",
     "speaker.empty_label": "اسم المتحدث لا يمكن أن يكون فارغًا",
     "speaker.label_too_long": "اسم المتحدث يتجاوز الحد المسموح",
     "speaker.bad_body": "صيغة الطلب غير صحيحة",
-    # الصوت والرفع
+    # audio and upload
     "app.title": "محضر",
     "audio.ffmpeg_missing": "أدوات معالجة الصوت غير متوفرة على الخادم",
     "audio.corrupt": "تعذّرت قراءة ملف الصوت، يبدو أنه تالف أو بصيغة غير صالحة",
@@ -27,15 +27,15 @@ MESSAGES: dict[str, str] = {
         "صيغة الملف غير مدعومة، الصيغ المقبولة: webm, ogg, wav, mp3, m4a, mp4"
     ),
     "upload.file_too_large": "حجم الملف يتجاوز الحد المسموح به",
-    # مفاتيح الاجتماع
+    # meeting lookup
     "job.not_found": "هذا الاجتماع غير موجود",
     "audio.not_ready": "الصوت المعالج غير جاهز بعد",
-    # التفريغ عبر Groq
+    # Groq transcription
     "groq.key_missing": "مفتاح GROQ_API_KEY غير مضبوط في ملف .env",
     "groq.rate_limit": "تجاوزنا حد الطلبات المجانية مؤقتًا، أعد المحاولة بعد قليل",
     "groq.unavailable": "تعذّر الوصول إلى خدمة التفريغ الصوتي، تحقّق من الاتصال بالإنترنت",
     "groq.failed": "فشل التفريغ الصوتي",
-    # المزود المحلي بلا اتصال (faster-whisper وOllama)
+    # offline local providers (faster-whisper and Ollama)
     "local_llm.key_missing": "مزود التحليل المحلي غير متاح",
     "local_llm.rate_limit": "مزود التحليل المحلي مشغول مؤقتًا، أعد المحاولة بعد قليل",
     "local_llm.unavailable": (
@@ -43,16 +43,16 @@ MESSAGES: dict[str, str] = {
     ),
     "local_llm.failed": "فشل التحليل عبر المزود المحلي",
     "local_stt.failed": "فشل التفريغ الصوتي عبر المزود المحلي",
-    # ضبط المزودات
+    # provider configuration
     "config.unknown_provider": (
         "قيمة STT_PROVIDER أو LLM_PROVIDER في ملف .env غير معروفة، القيم المقبولة: groq أو local"
     ),
     "transcription.unexpected": "فشل التفريغ الصوتي بشكل غير متوقع",
     "transcription.empty": "لم يعثر التفريغ على أي كلام مسموع في هذا التسجيل",
-    # تجميع الجمل وتقسيم الصوت
+    # sentence assembly and audio splitting
     "assembly.failed": "حدث خطأ أثناء تجميع الجمل",
     "audio.split_failed": "تعذّر تقسيم الملف الطويل",
-    # تحليل المحضر
+    # minutes analysis
     "analysis.failed": "تعذّر استخلاص المحضر من النص، تستطيع إعادة المحاولة من صفحة النتيجة",
     "analysis.transcript_missing": "تعذّر التحليل لأن التفريغ غير محفوظ بعد",
     "analysis.too_long": (
@@ -60,7 +60,7 @@ MESSAGES: dict[str, str] = {
         "جزّئ التسجيل إلى اجتماعات أقصر وحاول من جديد"
     ),
     "analysis.unexpected": "حدث خطأ غير متوقع أثناء التحليل",
-    # التصدير (ملف المحضر)
+    # export (the minutes document)
     "export.title_prefix": "محضر اجتماع",
     "export.date": "التاريخ",
     "export.date_gregorian": "ميلادي",
@@ -92,7 +92,7 @@ MESSAGES: dict[str, str] = {
 
 
 def resolve(message_key: str, *, params: dict[str, str] | None = None) -> str:
-    """يعيد النص العربي الموافق للمفتاح؛ النموذج المتقاعد له معالجة خاصة."""
+    """Returns the Arabic text for a key; the retired-model message is composed."""
     if message_key == "analysis.model_deprecated":
         available = (params or {}).get("available", "")
         return (
@@ -102,5 +102,5 @@ def resolve(message_key: str, *, params: dict[str, str] | None = None) -> str:
 
 
 def default_speaker_label(index: int) -> str:
-    """التسمية الافتراضية للمتحدث رقم index (تبدأ من 0)."""
+    """Default label for speaker number index (0-based)."""
     return f"المتحدث {index + 1}"
