@@ -210,3 +210,61 @@ is not already present, and values are never touched, so a reply that was
 correct apart from key casing passes on the first call instead of spending
 the single correction retry. The transcript was never affected by this
 failure; only the extracted minutes were.
+
+## 2026-08-21: one uvicorn worker, background threads, JSON on disk
+
+Recorded late because it is the most likely question about this architecture:
+where is the database, the queue, the second worker? Nowhere, on purpose.
+Mahdar is sized as a single-meeting tool: one person records one meeting and
+reads one set of minutes, so concurrency is an occasional overlap, not a load
+profile. Job state lives in an in-process registry with the pipeline on
+background threads, and every meeting persists as JSON files under /data, so
+uvicorn must run exactly one worker: a second process would hold a second
+registry and the two would race on the same state files. What a database and
+a queue would normally buy is covered at this scale by cheaper mechanisms
+already in place: crash recovery by the boot settle (an interrupted job
+reloads as failed or retryable, never as a zombie), transient failures by the
+bounded retry helpers, and inspectability by the state being plain JSON a
+person can read and back up with cp. Redis, Celery, or a SQL server would
+each add one more stateful service to the one-command compose file and an
+operational surface this scope does not need. If this were productized for
+real concurrency, the cut line is already drawn: job state moves from the
+in-process registry to a shared store, stage execution moves from threads to
+queue workers, and the HTTP tier then scales horizontally behind them. The
+stages already communicate only through persisted artifacts (state.json,
+words.json, turns.json), so that migration replaces the registry, not the
+pipeline.
+
+## 2026-08-21: model selection: what shipped and what was scouted
+
+Groq's whisper-large-v3 stays the shipped transcription default for two
+concrete reasons: an evaluator can create a free key in minutes and run the
+whole pipeline the same day, and the API returns word-level timestamps, which
+sentence-level seek, citation grounding, and the silence filter are all built
+on; an STT service returning plain text would disable all three. During
+research, CohereLabs/cohere-transcribe-arabic-07-2026, an Arabic-specialized
+STT model released in July 2026, was evaluated on the HUMAIN Fuse sovereign
+platform. It was not integrated into this codebase, and nothing here depends
+on it. The provider factory is the designed upgrade seam for that class of
+deployment: a closed government environment would put a sovereign router
+(Fuse or similar) or the fully offline path (see the 2026-08-18 offline
+entry) behind the same two provider interfaces, without touching the
+pipeline.
+
+## 2026-08-21: the reduce step can still return an empty reply
+
+The uppercase-keys reduce failure was fixed deterministically (schema anchor
+plus key-case repair, above). A second failure mode remains open: on long
+meetings, smaller reasoning models can spend the whole completion budget
+(MAX_COMPLETION_TOKENS, 4000) on internal reasoning and return an empty
+reduce reply. The extractor asks for include_reasoning=false, but models
+that reason internally consume those tokens either way, and an empty reply
+gives the key-case repair and the corrective retry nothing to work on. This
+is mitigated, not eliminated: the completion budget carries headroom well
+past any minutes object seen in testing, the analyze stage soft-fails so the
+transcript and speakers stay intact and the job stays done, and re-analysis
+is one click in the UI. Eliminating it outright would mean raising the
+completion budget against the free-tier tokens-per-minute window or pinning
+the reduce call to a larger model; both cost more than the retry does.
+Recorded so the empty-reply path is not mistaken for a regression of the
+fixed one.

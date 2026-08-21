@@ -142,13 +142,17 @@ direction), and the single Arabic error surface.
 ## Checks
 
 ```bash
+pip install -r requirements-dev.txt  # runtime pins + pytest, ruff, respx
 ruff format --check .
 ruff check .
 pytest -q
 ```
 
-Last run (2026-08-21, this machine): both ruff checks clean, 242 tests pass
-in ~24 s with one Starlette deprecation warning. No test touches the
+The Docker image installs `requirements.txt` only; the test and lint tools
+live in `requirements-dev.txt` and never enter the runtime image.
+
+Last run (2026-08-21, this machine): both ruff checks clean, 245 tests pass
+in ~21 s with one Starlette deprecation warning. No test touches the
 network; all providers are mocked. One manual check before shipping: reload
 the page mid-processing and confirm the `#<id>` URL restores the job.
 
@@ -164,6 +168,11 @@ or key material.
   CPU, RAM, and the free-tier rate limits with no queue.
 - The free Groq tier is limited per minute and per day; a burst of analyses
   surfaces as a retryable Arabic error, and re-analysis is one click.
+- On long meetings the reduce step of the map-reduce path can come back
+  empty from smaller reasoning models, whose internal reasoning can consume
+  the whole completion token budget. It surfaces as the retryable analysis
+  error above with one-click re-analysis, and the transcript is never
+  affected. Mitigated by completion-budget headroom, not eliminated.
 - Diarization holds the full waveform in RAM and needs the gated pyannote
   model accepted on your HF token.
 - The prompt comparison in docs/DECISIONS.md is indicative only: one of the
