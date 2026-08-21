@@ -5,7 +5,10 @@ right-aligned, and every piece of text within it must be split into Arabic
 runs (w:rtl set) versus Latin and digit runs (no w:rtl), so an English term
 or a number inside an Arabic sentence keeps its internal order while the
 sentence itself flows right to left. Styles are fixed Arial with matching
-ascii and complex-script fonts (see DECISIONS.md).
+ascii and complex-script fonts: Arial is installed everywhere Word runs and
+shapes Arabic correctly, so the export renders the same on any machine that
+opens it, while embedding the vendored UI font would swell every file and
+raise font-embedding license questions the document does not need.
 """
 
 import re

@@ -1,5 +1,6 @@
-// The six single-page views and the failure surface, kept apart from app.js so
-// the controller file stays within the module size budget.
+// The six single-page views and the failure surface. View switching, the
+// banner gate, and the kept-recording store live here so app.js holds only
+// the controller flow that drives them.
 
 import { ALLOWED_EXTENSIONS, BYTES_PER_UPLOAD_MB } from "./config.js";
 import { STRINGS } from "./strings.js";

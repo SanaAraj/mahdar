@@ -31,9 +31,9 @@ class Settings(BaseSettings):
         return self.max_upload_mb * constants.BYTES_PER_MB
 
 
-# For local runs outside Docker, look for the user's ffmpeg/ffprobe beside the
-# project toolchain (see DECISIONS.md). Inside the container ffmpeg is already
-# on PATH, so this only ever helps, never hides a system install.
+# Local dev on a Mac without a system ffmpeg: a static ffmpeg/ffprobe build
+# unpacked under ~/ffmpeg/bin goes on PATH so runs outside Docker find it.
+# Inside the container the directory does not exist and this is a no-op.
 _LOCAL_BIN = Path.home() / "ffmpeg" / "bin"
 if _LOCAL_BIN.is_dir() and str(_LOCAL_BIN) not in os.environ.get("PATH", ""):
     os.environ["PATH"] = str(_LOCAL_BIN) + os.pathsep + os.environ.get("PATH", "")
