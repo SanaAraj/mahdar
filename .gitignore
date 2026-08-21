@@ -1,15 +1,7 @@
-# Secrets: ignore every env file and backup, then re-admit the example
-# template. Anything holding a real key (.env, .env.backup, .env.local) must
-# never enter git; only .env.example is committed.
 .env
 .env.*
 !.env.example
-# Runtime output: every meeting's audio, transcript, and state.json. Never
-# enters git (matching .dockerignore); tracked here so a bare `git add -A`
-# cannot sweep job artifacts into a commit.
 data/
-# Local working notes: root-level markdown stays out of git except the README.
-# Shipped documentation lives in docs/.
 /*.md
 !/README.md
 samples/external/
@@ -19,3 +11,10 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .DS_Store
+node_modules/
+.turbo/
+dist/
+apps/web/.output/
+apps/web/.nitro/
+apps/web/.tanstack/
+apps/web/src/routeTree.gen.ts
