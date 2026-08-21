@@ -14,7 +14,10 @@ services:
   # Offline fallback: a local Ollama server under the "local" profile. Start it
   # with `docker compose --profile local up`; STT_PROVIDER=local and
   # LLM_PROVIDER=local in .env point the app at it. The command serves, pulls
-  # the configured model once if absent, then waits on the server.
+  # the configured model once if absent, then waits on the server. Compose
+  # interpolates ${LOCAL_LLM_MODEL} from .env at parse time, so the service
+  # pulls exactly the model the app requests; a $$ escape here would defer to
+  # the in-container shell, where the variable is never set.
   ollama:
     image: ollama/ollama:0.32.15
     profiles: ["local"]
@@ -28,12 +31,12 @@ services:
       retries: 60
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - ollama serve & sleep 3 && (ollama show "$${LOCAL_LLM_MODEL:-qwen3:8b}" >/dev/null 2>&1 || ollama pull "$${LOCAL_LLM_MODEL:-qwen3:8b}") && wait
+      - ollama serve & sleep 3 && (ollama show "${LOCAL_LLM_MODEL:-qwen3:8b}" >/dev/null 2>&1 || ollama pull "${LOCAL_LLM_MODEL:-qwen3:8b}") && wait
 
 volumes:
   # Named volume: initializes from the image, so the non-root container user
   # always owns /data. A bind mount of ./data would create a root-owned
-  # directory on a fresh Linux clone and break job writes (see DECISIONS).
+  # directory on a fresh Linux clone and break job writes.
   mahdar-data:
   # Ollama model weights, so the ~5 GB pull survives restarts and rebuilds.
   ollama-data:
