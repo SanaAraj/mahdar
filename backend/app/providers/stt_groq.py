@@ -181,9 +181,6 @@ def _first_text(item: dict) -> str:
     return ""
 
 
-_SEGMENT_STAT_KEYS: tuple[str, ...] = ("no_speech_prob", "avg_logprob", "compression_ratio")
-
-
 def _segment_stats_of(segment: dict) -> dict[str, float]:
     """Whisper segment quality stats, kept for downstream cleanup; floats only."""
     stats: dict[str, float] = {}
