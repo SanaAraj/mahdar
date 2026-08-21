@@ -89,7 +89,9 @@ WINDOW_TOKEN_BUDGET: int = (
 REDUCE_PROMPT_OVERHEAD_EST_TOKENS: int = 1740  # >= estimate_tokens(REDUCE_SYSTEM_PROMPT)
 REDUCE_TOKEN_BUDGET: int = (
     MAX_PROMPT_TOKENS - REDUCE_PROMPT_OVERHEAD_EST_TOKENS - SAFETY_MARGIN_TOKENS
-)  # = 6440: reduce input holds window summaries only, never the transcript
+)  # = 6440: budget for the reduce user message alone (window summaries only,
+# never the transcript). The system prompt is paid for by the overhead term
+# above, so the budget checks compare only the joined summaries against this.
 MAP_OVERLAP_MIN_TOKENS: int = 3  # minimum shared content tokens to fuse two mapped items
 MAP_TITLE_OVERLAP_MAX_TOKENS: int = (
     2  # a heading-length summary (<= this) fuses on full containment

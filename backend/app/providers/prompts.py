@@ -223,10 +223,12 @@ def build_reduce_message(window_summaries: list[str]) -> str:
     Raises the shared budget message when the joined summaries still exceed
     REDUCE_TOKEN_BUDGET, before any network call, so an over-long meeting
     degrades to the existing Arabic guidance instead of a failed request.
+    The system prompt is not added here: REDUCE_TOKEN_BUDGET already deducted
+    its estimated size, so charging it again would shrink the real ceiling.
     """
     blocks = [f"[w{index + 1}]\n{summary}" for index, summary in enumerate(window_summaries)]
     message = "\n\n".join(blocks)
-    tokens = estimate_tokens(REDUCE_SYSTEM_PROMPT) + estimate_tokens(message)
+    tokens = estimate_tokens(message)
     if tokens > constants.REDUCE_TOKEN_BUDGET:
         raise AnalysisError(
             "analysis.too_long",

@@ -291,6 +291,22 @@ def test_reduce_input_over_budget_fails_before_network():
     assert exc.value.message_key == "analysis.too_long"
 
 
+def test_reduce_input_near_budget_passes_without_double_counting_the_prompt():
+    """A message just under REDUCE_TOKEN_BUDGET must pass the pre-flight check.
+
+    Regression: the check once added estimate_tokens(REDUCE_SYSTEM_PROMPT) on
+    top of the message before comparing against a budget that had already
+    deducted that overhead, silently shrinking the real ceiling by ~1740
+    tokens. The message here sits inside that formerly rejected band.
+    """
+    word = "كلمة "
+    count = (constants.REDUCE_TOKEN_BUDGET - 100) // prompts.estimate_tokens(word)
+    message = prompts.build_reduce_message([word * count])
+    tokens = prompts.estimate_tokens(message)
+    assert tokens > constants.REDUCE_TOKEN_BUDGET - constants.REDUCE_PROMPT_OVERHEAD_EST_TOKENS
+    assert tokens <= constants.REDUCE_TOKEN_BUDGET
+
+
 # ---------- the deterministic date layer runs on the merged result ----------
 
 
