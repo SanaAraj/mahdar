@@ -1,12 +1,6 @@
-"""Public pipeline surface: owns the providers and the five stage bodies.
-
-All orchestration length and locking detail lives in core/runner.py; the
-analysis-stage helpers live in core/analysis.py. This module only knows how to
-run one stage of one job against the providers it was built with.
-"""
-
 import logging
 import threading
+from threading import BoundedSemaphore
 
 from app.features.analysis import service as analysis
 from app.features.transcription import cleanup
@@ -25,31 +19,53 @@ from app.shared.protocols import Diarizer, MinutesExtractor, Transcriber
 
 log = logging.getLogger(__name__)
 
-# Re-exported for tests that exercise the date layer off the model.
+
 apply_meeting_task_dates = analysis.apply_meeting_task_dates
 
 
 class Pipeline:
-    """Coordinates convert, parallel transcribe/diarize, assemble, and analyze."""
-
     def __init__(
         self,
         registry: JobRegistry,
         transcriber: Transcriber,
         diarizer: Diarizer | None = None,
         extractor: MinutesExtractor | None = None,
+        max_active: int = 1,
     ) -> None:
         self._registry = registry
         self._transcriber = transcriber
         self._diarizer = diarizer
         self._extractor = extractor
+        self._slots = BoundedSemaphore(max_active)
 
-    def start(self, job_id: str) -> None:
-        threading.Thread(target=self.run, args=(job_id,), daemon=True).start()
+    def has_capacity(self) -> bool:
 
-    def start_analysis(self, job_id: str) -> None:
-        """Re-run only the analysis stage on the stored transcript."""
-        threading.Thread(target=self.run_analysis, args=(job_id,), daemon=True).start()
+        return self._slots._value > 0
+
+    def start(self, job_id: str) -> bool:
+        return self._spawn(self._guarded_run, job_id)
+
+    def start_analysis(self, job_id: str) -> bool:
+
+        return self._spawn(self._guarded_run_analysis, job_id)
+
+    def _spawn(self, body, job_id: str) -> bool:
+        if not self._slots.acquire(blocking=False):
+            return False
+        threading.Thread(target=body, args=(job_id,), daemon=True).start()
+        return True
+
+    def _guarded_run(self, job_id: str) -> None:
+        try:
+            self.run(job_id)
+        finally:
+            self._slots.release()
+
+    def _guarded_run_analysis(self, job_id: str) -> None:
+        try:
+            self.run_analysis(job_id)
+        finally:
+            self._slots.release()
 
     def run(self, job_id: str) -> None:
         if self._registry.get(job_id) is None:
@@ -59,8 +75,6 @@ class Pipeline:
 
     def run_analysis(self, job_id: str) -> None:
         StageRunner(self._registry, job_id, self._map(job_id)).run_analysis()
-
-    # ---- the five stages ----
 
     def _convert(self, job_id: str) -> None:
         job_dir = self._registry.job_dir(job_id)
@@ -96,8 +110,6 @@ class Pipeline:
         )
         with self._registry.locked(job_id) as current:
             if current is not None:
-                # Read the current labels inside the lock so a renaming in flight
-                # is not lost by a stale read taken before the lock.
                 labels = {sp.id: sp.label for sp in current.speakers}
                 current.sentences = sentences
                 current.speakers = build_speakers(turns, labels)

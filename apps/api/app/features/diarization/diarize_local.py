@@ -1,5 +1,3 @@
-"""Local speaker diarization via pyannote, returning non-overlapping turns."""
-
 import logging
 import threading
 from pathlib import Path
@@ -18,14 +16,6 @@ _lock = threading.Lock()
 
 
 class LocalDiarizer:
-    """Separates speakers locally with pyannote into exclusive turns.
-
-    torchaudio.load decodes the full waveform into RAM by design; the memory
-    cost is constants.DIARIZATION_RAM_BYTES_PER_SECOND per second of audio
-    (about 230 MB/hour at 16 kHz mono float32). This is the one intentional
-    whole-file-in-memory case, documented in README and DECISIONS.
-    """
-
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
@@ -46,7 +36,7 @@ class LocalDiarizer:
 
 
 def _build_pipeline(settings: Settings):
-    from pyannote.audio import Pipeline  # lazy import keeps startup fast
+    from pyannote.audio import Pipeline
 
     kwargs = {"token": settings.hf_token} if settings.hf_token else {}
     try:
@@ -58,12 +48,7 @@ def _build_pipeline(settings: Settings):
 
 
 def _load_waveform(wav_path: Path):
-    """Decode the pipeline-made 16 kHz mono WAV without torchaudio.
 
-    torchaudio 2.11 decodes via torchcodec, whose binary needs system libs this
-    slim image does not ship. to_wav16k_mono always writes 16-bit PCM, so the
-    stdlib reader plus an int16 -> float32 rescale is exact.
-    """
     import wave
 
     import torch
@@ -77,7 +62,7 @@ def _load_waveform(wav_path: Path):
                 )
             raw = wav.readframes(wav.getnframes())
             sample_rate = wav.getframerate()
-        # torch needs a writable tensor: bytes are read-only, so stage via bytearray
+
         samples = torch.frombuffer(bytearray(raw), dtype=torch.int16)
         return samples.float().div_(32768.0).unsqueeze(0), sample_rate
     except DiarizationError:
@@ -97,5 +82,5 @@ def _turns_from(output) -> list[Turn]:
 
 
 def estimated_ram_bytes(duration_s: float) -> int:
-    """RAM the diarizer needs for a clip of this length (float32 16 kHz mono)."""
+
     return int(duration_s * constants.DIARIZATION_RAM_BYTES_PER_SECOND)

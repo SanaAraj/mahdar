@@ -1,5 +1,3 @@
-"""Tests for the shared retry helper: Retry-After handling and exhaustion."""
-
 import httpx
 import pytest
 
@@ -10,7 +8,7 @@ from app.shared.retry import RetryableError, retry_after_seconds, run_with_retri
 
 @pytest.fixture(autouse=True)
 def _no_jitter(monkeypatch):
-    """Pin jitter to zero so each asserted sleep is deterministic."""
+
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     yield
 
@@ -68,11 +66,11 @@ def test_unreadable_retry_after_header_falls_back(monkeypatch):
 
 
 def test_backoff_carries_jitter(monkeypatch):
-    """With jitter enabled an exponential wait grows by up to HTTP_JITTER_S."""
+
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0.5)
     sleeps: list[float] = []
     monkeypatch.setattr("time.sleep", sleeps.append)
-    monkeypatch.setattr("random.uniform", lambda lo, hi: hi)  # max jitter, deterministic
+    monkeypatch.setattr("random.uniform", lambda lo, hi: hi)
     public = TranscriptionError("groq.unavailable", "down")
     operation, _ = _attempt([RetryableError(public)])
     run_with_retries(operation, "test")

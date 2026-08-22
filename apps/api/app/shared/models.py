@@ -1,5 +1,3 @@
-"""Pydantic models for everything the server exchanges with the UI or persists."""
-
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
@@ -45,8 +43,6 @@ class Sentence(BaseModel):
 
 
 class Word(BaseModel):
-    """One transcribed token; the three optional fields are whisper segment stats."""
-
     start: float
     end: float
     text: str
@@ -68,8 +64,6 @@ class Speaker(BaseModel):
 
 
 class SegmentCited(BaseModel):
-    """Any analysis item carrying the ids of the transcript lines it rests on."""
-
     segment_ids: list[str] = Field(default_factory=list)
 
     def cited_ids(self) -> list[str]:
@@ -99,8 +93,7 @@ class TaskItem(SegmentCited):
     description: str
     owner: str | None = None
     due: DueDate = Field(default_factory=DueDate)
-    # Arabic priority literals are the JSON contract of an Arabic product
-    # (see DECISIONS.md); they are content, not code copy.
+
     priority: Literal["عالية", "متوسطة", "منخفضة"] | None = None
 
 
@@ -114,7 +107,7 @@ class Analysis(BaseModel):
 
 
 def gregorian_hijri(gregorian_iso: str) -> str | None:
-    """Convert an ISO Gregorian date to ISO Hijri; None when conversion fails."""
+
     try:
         iso = gregorian_iso[:10]
         day = date(int(iso[0:4]), int(iso[5:7]), int(iso[8:10]))
@@ -124,8 +117,6 @@ def gregorian_hijri(gregorian_iso: str) -> str | None:
 
 
 class MeetingMeta(BaseModel):
-    """What the extraction prompt header places before the transcript lines."""
-
     date_gregorian: str
     date_hijri: str
     duration_s: float | None = None
@@ -146,8 +137,6 @@ class MeetingJob(BaseModel):
 
 
 class ExportMeta(BaseModel):
-    """The public meta block of a JSON export: dates, duration, no internals."""
-
     id: str
     created_at: datetime
     date_gregorian: str | None = None
@@ -156,8 +145,6 @@ class ExportMeta(BaseModel):
 
 
 class ExportMeeting(BaseModel):
-    """The canonical public meeting document; internal state never appears."""
-
     meta: ExportMeta
     speakers: list[Speaker]
     sentences: list[Sentence]

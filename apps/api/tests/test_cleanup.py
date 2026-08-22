@@ -1,7 +1,8 @@
-"""Cleanup guards against whisper silence hallucinations: no_speech filter and collapse."""
-
 from app import constants
-from app.features.transcription.cleanup import collapse_repeated_sentences, filter_no_speech_words
+from app.features.transcription.cleanup import (
+    collapse_repeated_sentences,
+    filter_no_speech_words,
+)
 from app.features.transcription.sentences import words_to_sentences
 from app.shared.models import Sentence, Word
 
@@ -56,13 +57,13 @@ def test_collapse_spares_legitimate_repeat_separated_by_others():
 
 
 def test_collapse_uses_arabic_normalization():
-    # Alef-hamza and plain alef normalize to one form, so these two collapse.
+
     sents = [_sentence("s1", "إجتماع الفريق"), _sentence("s2", "اجتماع الفريق", start=1.0)]
     assert [s.id for s in collapse_repeated_sentences(sents)] == ["s1"]
 
 
 def test_collapse_spares_distinct_short_token_sentences():
-    # Tokens under the min length yield an empty signature; distinct texts still survive.
+
     sents = [_sentence("s1", "و في"), _sentence("s2", "ثم مع", start=1.0)]
     assert [s.id for s in collapse_repeated_sentences(sents)] == ["s1", "s2"]
 

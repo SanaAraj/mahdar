@@ -14,12 +14,7 @@ _STATE_FILE = "state.json"
 
 
 def _settle_interrupted(job: MeetingJob) -> bool:
-    """Settle a job reloaded mid-run: it will never resume, so it must not spin.
 
-    A surviving transcript keeps the meeting usable with a retryable analyze
-    note, mirroring the runner's soft-fail; anything earlier becomes a plain
-    failure the UI can retry from. True when the job was changed.
-    """
     if job.status in (JobStatus.DONE, JobStatus.FAILED):
         return False
     for stage in job.stages:
@@ -38,8 +33,6 @@ def _settle_interrupted(job: MeetingJob) -> bool:
 
 
 class JobRegistry:
-    """Thread-safe job registry; persists each job to disk and reloads on boot."""
-
     def __init__(self, data_dir: Path) -> None:
         self._data_dir = data_dir
         self._jobs: dict[str, MeetingJob] = {}
@@ -59,8 +52,7 @@ class JobRegistry:
                     continue
                 if _settle_interrupted(job):
                     log.warning("Settled interrupted job %s as %s", job.id, job.status)
-                    # The constructor runs before any thread exists, so writing
-                    # without the lock here is safe.
+
                     self._persist_locked(job)
                 self._jobs[job.id] = job
         if self._jobs:
@@ -81,7 +73,7 @@ class JobRegistry:
         return self._data_dir / job_id
 
     def rename_speakers(self, job_id: str, mapping: dict[str, str]) -> bool:
-        """Update speaker labels and persist; True when the job exists."""
+
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -94,7 +86,7 @@ class JobRegistry:
 
     @contextmanager
     def locked(self, job_id: str) -> Iterator[MeetingJob | None]:
-        """Lock the registry and auto-persist the job on block exit."""
+
         with self._lock:
             job = self._jobs.get(job_id)
             try:

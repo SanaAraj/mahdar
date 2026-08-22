@@ -1,10 +1,3 @@
-"""Provider protocols; the exception types they raise live in core/errors.py.
-
-The concrete exceptions (TranscriptionError, DiarizationError, AnalysisError)
-are imported from the single hierarchy in core/errors so providers, pipeline,
-and the API boundary all speak one error language.
-"""
-
 from pathlib import Path
 from typing import Protocol
 

@@ -1,13 +1,10 @@
-"""Turns timestamped words into sentences with logical endings."""
-
 from app import constants
 from app.features.transcription.speakers import best_speaker
 from app.shared.models import Sentence, Turn, Word
 
 
 def words_to_sentences(words: list[Word], turns: list[Turn] | None = None) -> list[Sentence]:
-    """Group words into sentences, closed by punctuation, pause, hard limits,
-    or a diarized speaker change. Without turns the behavior is unchanged."""
+
     marks = _turn_marks(words, turns or [])
     sentences: list[Sentence] = []
     current: list[Word] = []
@@ -22,7 +19,7 @@ def words_to_sentences(words: list[Word], turns: list[Turn] | None = None) -> li
 
 
 def _turn_marks(words: list[Word], turns: list[Turn]) -> list[str | None]:
-    """Each word's diarized speaker; all None when diarization was skipped."""
+
     if not turns:
         return [None] * len(words)
     return [best_speaker(word.start, word.end, turns) for word in words]
@@ -41,8 +38,7 @@ def _should_close(
         gap = words[index + 1].start - word.end
         if gap >= constants.SENTENCE_PAUSE_GAP_S:
             return True
-        # A diarized speaker change is a hard boundary: one sentence never
-        # carries both sides of an exchange.
+
         if marks[index] is not None and marks[index + 1] is not None:
             if marks[index] != marks[index + 1]:
                 return True

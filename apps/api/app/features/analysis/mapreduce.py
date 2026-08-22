@@ -1,5 +1,3 @@
-"""Map-reduce analysis for transcripts too long for a single extraction call."""
-
 import logging
 import time
 from collections.abc import Callable
@@ -21,7 +19,7 @@ def analyze_long(
     reduce_once: Callable[[list[str]], Analysis],
     job_id: str | None = None,
 ) -> Analysis:
-    """Extract each window, ground its cited ids, then reduce the window summaries."""
+
     jlog = job_log(log, job_id) if job_id else log
     windows = split_into_windows(sentences)
     jlog.info("map-reduce over %d window(s) of %d sentences", len(windows), len(sentences))
@@ -43,7 +41,7 @@ def analyze_long(
 
 
 def _cap_summaries(summaries: list[str], jlog=None) -> list[str]:
-    """Cap the reduce input; log a preview on overflow instead of failing silently."""
+
     logger = jlog if jlog is not None else log
     if len(summaries) > constants.REDUCE_SUMMARY_MAX_ITEMS:
         logger.warning(
@@ -59,12 +57,7 @@ def _cap_summaries(summaries: list[str], jlog=None) -> list[str]:
 
 
 def _ground_window_ids(part: Analysis, window: list[Sentence]) -> Analysis:
-    """Keep only cited ids that name a sentence of this window, in cited order.
 
-    Windows keep their real global sentence ids on the wire and the window
-    prompt instructs the model to cite only the ids it shows, so grounding is
-    a filter against this window's id set and never a renumbering.
-    """
     valid = {sentence.id for sentence in window}
 
     def fix(ids: list[str]) -> list[str]:
@@ -89,7 +82,7 @@ def _ground_window_ids(part: Analysis, window: list[Sentence]) -> Analysis:
 
 
 def _window_summary(part: Analysis) -> str:
-    """A compact item-shaped block of one window's analysis, the only reduce input."""
+
     lines: list[str] = [
         f"TITLE: {part.title}",
         "ATTENDEES: " + (constants.ARABIC_COMMA + " ").join(part.attendees),
@@ -113,7 +106,7 @@ _SEGMENT_IDS = "segment_ids"
 
 
 def _merge_fallback(merged: Analysis, partials: list[Analysis]) -> Analysis:
-    """Repair the reduce reply: union attendees and re-ground unresolved segment ids."""
+
     return Analysis(
         title=merged.title,
         attendees=_union_attendees(partials, merged.attendees),
@@ -133,7 +126,7 @@ def _union_attendees(partials: list[Analysis], reduced: list[str]) -> list[str]:
 
 
 def _merge_items(reduced_items: list) -> list:
-    """Union of the reduced items; near-identical rows fuse their segment_ids."""
+
     kept: list = []
     for item in reduced_items:
         match = next((k for k in kept if citations.map_similar(k, item)), None)

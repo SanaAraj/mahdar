@@ -1,9 +1,3 @@
-"""Unit tests for the diarizer's stdlib WAV loader (no torchaudio/torchcodec).
-
-Torch is imported lazily inside the loader, so tests run without it: a fakes
-module stands in, implementing only the two calls the loader makes.
-"""
-
 import struct
 import sys
 import types
@@ -25,7 +19,7 @@ class _FakeTensor:
         return self
 
     def div_(self, scalar):
-        return self  # already scaled int16 -> float32 in __init__; no-op for float
+        return self
 
     def unsqueeze(self, dim):
         assert dim == 0

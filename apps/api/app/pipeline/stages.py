@@ -1,9 +1,3 @@
-"""Per-stage state transitions on the persisted MeetingJob.
-
-Small, single-responsibility helpers that the Pipeline composes. Keeping them
-here keeps pipeline.py focused on orchestration order rather than bookkeeping.
-"""
-
 import logging
 import time
 
@@ -30,7 +24,7 @@ def stage_state(registry: JobRegistry, job_id: str, key: str) -> StageState:
 
 
 def begin(registry: JobRegistry, job_id: str, key: str) -> float:
-    """Mark a stage RUNNING on the wire and return a monotonic start time."""
+
     with registry.locked(job_id) as current:
         if current is not None:
             current.status = STAGE_DEFS[key].wire_status
@@ -47,7 +41,7 @@ def set_state(
     note_key: str | None = None,
     note_params: dict[str, str] | None = None,
 ) -> None:
-    """Set a stage's terminal state, log its duration, optionally leave a note."""
+
     with registry.locked(job_id) as current:
         if current is not None:
             stage = current.stages[STAGE_INDEX[key]]
@@ -58,7 +52,7 @@ def set_state(
 
 
 def mark_done(registry: JobRegistry, job_id: str) -> None:
-    """Return the job to DONE without disturbing a FAILED status."""
+
     with registry.locked(job_id) as current:
         if current is not None and current.status != JobStatus.FAILED:
             current.status = JobStatus.DONE

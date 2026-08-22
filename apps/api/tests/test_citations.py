@@ -1,5 +1,3 @@
-"""Tests for citation cleaning: the id guard and the content-overlap guard."""
-
 from app.features.analysis.citations import content_overlap, validate
 from app.shared.models import (
     Analysis,
@@ -53,7 +51,7 @@ def test_latin_term_overlap_counts():
         }
     )
     cleaned, dropped = validate(analysis, SENTENCES)
-    assert dropped == 1  # the Arabic-only fabrication drops
+    assert dropped == 1
     assert [d.text for d in cleaned.decisions] == ["اعتماد مؤشر KPI الجديد"]
 
 
@@ -106,8 +104,7 @@ def test_directive_requires_overlap():
 
 
 def test_topic_grounded_via_title_with_paraphrased_summary_survives():
-    """A topic whose title overlaps the cited text must survive even when the
-    summary paraphrases it and shares no token (the title is the literal source)."""
+
     analysis = _holding(
         {
             "topics": [
@@ -125,7 +122,7 @@ def test_topic_grounded_via_title_with_paraphrased_summary_survives():
 
 
 def test_topic_grounded_via_title_with_empty_summary_survives():
-    """An empty summary is schema-valid; the title alone must ground the topic."""
+
     analysis = _holding(
         {"topics": [Topic(title="الميزانية السنوية", summary="", segment_ids=["s3"])]}
     )
@@ -135,7 +132,7 @@ def test_topic_grounded_via_title_with_empty_summary_survives():
 
 
 def test_topic_with_neither_title_nor_summary_overlap_drops():
-    """When neither the title nor the summary overlaps the cited text, drop it."""
+
     analysis = _holding(
         {
             "topics": [
@@ -163,7 +160,7 @@ def test_partial_ids_keep_overlap_check_on_remaining():
     )
     cleaned, dropped = validate(analysis, SENTENCES)
     assert dropped == 1
-    # The surviving item kept only its real citation.
+
     assert cleaned.decisions[0].segment_ids == ["s2"]
 
 
@@ -177,14 +174,14 @@ def test_empty_citations_still_drop_without_overlap_check():
 def test_content_overlap_normalization():
     tokens = content_overlap("نراجعُ خطّة العمل، اليوم.")
     assert {"نراجع", "خطه", "العمل", "اليوم"} <= tokens
-    # Diacritics do not change the token set.
+
     assert content_overlap("نراجع خطة العمل اليوم") == tokens
-    # Latin survives; punctuation is stripped around it.
+
     assert "KPI" in content_overlap("اعتماد KPI المالية")
 
 
 def test_hallucinated_model_date_with_null_raw_is_cleared():
-    """No invention: when no date was said, the model may not fabricate one."""
+
     from datetime import date
 
     from app.pipeline.pipeline import apply_meeting_task_dates

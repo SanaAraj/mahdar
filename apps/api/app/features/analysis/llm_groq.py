@@ -1,14 +1,3 @@
-"""Minutes extraction from the transcript via the Groq chat endpoint.
-
-The cloud path only. The OpenAI-compatible transport lives in
-providers/llm_transport.py so the offline Ollama extractor (providers/
-llm_local.py) shares every byte of the request shape; the reply-cleaning
-(think tags, code fences, the JSON envelope) lives in llm_parse.py. The names
-tests import from this module (strip_reasoning, _json_object,
-_has_arabic_output) are re-exported below so a test face does not change with
-the file layout.
-"""
-
 import logging
 
 from pydantic import ValidationError
@@ -27,34 +16,20 @@ from app.shared.models import Analysis, MeetingMeta, Sentence, Speaker
 
 log = logging.getLogger(__name__)
 
-# Test face reused for the f-string labels so they render unchanged.
+
 _LABEL = "Groq LLM"
 
-# Per-class include_reasoning flag cell shared with the transport; a model
-# that rejects the optional flag is detected once and the flag is dropped
-# process-wide. The list wrapper lets the module-level _include_reasoning_supported
-# read-through attribute and the cell stay in sync after either is set.
+
 _include_reasoning_support: list[bool] = [True]
 
-# Back-compat test face: read/mutate this module attribute as before.
+
 _include_reasoning_supported: bool = True
 
 
 class GroqMinutesExtractor:
-    """Calls Groq at most twice: once to extract and once to fix it.
-
-    The second call fixes one disjoint failure mode of the first reply: a
-    schema mismatch (correction message) or an English-only-but-valid reply
-    (Arabic-output message). A second failure of either raises AnalysisError.
-    A transcript too long for one call is not failed: extract() hands it to the
-    map-reduce path, which runs this same single-pass logic over budget-fitting
-    sentence windows and merges the results with one reduce call.
-    """
-
     def __init__(self, settings: Settings, transport: ChatProviderTransport | None = None) -> None:
         self._settings = settings
-        # Sync the legacy module-level bool into the shared cell at construction,
-        # so a fixture that reset it to True keeps meaning "fresh process".
+
         _include_reasoning_support[0] = _include_reasoning_supported
         self._transport = transport or ChatProviderTransport(
             GroqChatConfig(settings, _include_reasoning_support)
@@ -80,7 +55,7 @@ class GroqMinutesExtractor:
     def _extract_once(
         self, meta: MeetingMeta, sentences: list[Sentence], speakers: list[Speaker]
     ) -> Analysis:
-        """The single-call fast path, also used as one map call per window."""
+
         user_message = prompts.build_user_message(meta, sentences, speakers)
         prompts.ensure_within_budget(user_message)
         messages = [
@@ -92,7 +67,7 @@ class GroqMinutesExtractor:
     def _extract_window(
         self, meta: MeetingMeta, sentences: list[Sentence], speakers: list[Speaker]
     ) -> Analysis:
-        """One map call: the extraction prompt over one window, with a scope line."""
+
         user_message = prompts.build_user_message(meta, sentences, speakers)
         prompts.ensure_within_budget(user_message)
         messages = [
@@ -102,7 +77,7 @@ class GroqMinutesExtractor:
         return self._complete(messages, f"{_LABEL} map")
 
     def _reduce_windows(self, window_summaries: list[str]) -> Analysis:
-        """One reduce call that merges the per-window summaries into minutes."""
+
         message = prompts.build_reduce_message(window_summaries)
         messages = [
             {"role": "system", "content": prompts.REDUCE_SYSTEM_PROMPT},
@@ -124,7 +99,7 @@ class GroqMinutesExtractor:
         )
 
     def _correct_schema(self, messages: list[dict], first: str, exc: ValidationError) -> Analysis:
-        """One schema-correction roundtrip; a second schema failure is terminal."""
+
         log.warning("analysis schema mismatch, asking for one correction: %s", exc)
         messages.append({"role": "assistant", "content": first})
         messages.append({"role": "user", "content": prompts.build_correction_message(str(exc))})
@@ -133,7 +108,7 @@ class GroqMinutesExtractor:
     def _require_arabic(
         self, messages: list[dict], first: str, first_analysis: Analysis
     ) -> Analysis:
-        """One Arabic-output retry when a valid first reply has no Arabic."""
+
         if _has_arabic_output(first_analysis):
             return first_analysis
         log.warning("analysis reply had no Arabic values, asking for one Arabic retry")
@@ -145,7 +120,7 @@ class GroqMinutesExtractor:
         raise AnalysisError("analysis.failed", "second reply still had no Arabic values")
 
     def _parse_or_raise(self, content: str) -> Analysis:
-        """Parse a second reply; a schema mismatch is terminal, no third call."""
+
         try:
             return self._parse(content)
         except ValidationError as second:
@@ -160,7 +135,7 @@ class GroqMinutesExtractor:
     def _assert_model_available(self) -> None:
         available = available_models(self._settings)
         if not available:
-            return  # the listing is unknown: never claim retirement without evidence
+            return
         configured = self._settings.groq_llm_model
         if configured in available:
             return
@@ -174,7 +149,7 @@ class GroqMinutesExtractor:
         return Analysis.model_validate(_json_object(content))
 
     def _complete(self, messages: list[dict], label: str) -> Analysis:
-        """Send one conversation and run its reply through the two-call contract."""
+
         first = self._send(messages)
         try:
             first_analysis = self._parse(first)

@@ -1,15 +1,9 @@
-"""The export boundary: build the public meeting document from the job.
-
-The JSON and DOCX endpoints both read this canonical shape, so internal
-stage state, file paths, and error bookkeeping never leave the server.
-"""
-
 from app import constants
 from app.shared.models import ExportMeeting, ExportMeta, MeetingJob
 
 
 def build_export(job: MeetingJob) -> ExportMeeting:
-    """The canonical public document: meta, speakers, sentences, analysis."""
+
     return ExportMeeting(
         meta=ExportMeta(
             id=job.id,
@@ -25,7 +19,7 @@ def build_export(job: MeetingJob) -> ExportMeeting:
 
 
 def export_filename(kind: str, job_id: str) -> str:
-    """The attachment name; ids are hex-validated upstream, always URL-safe."""
+
     template = (
         constants.DOCX_FILENAME_TEMPLATE if kind == "docx" else constants.JSON_FILENAME_TEMPLATE
     )

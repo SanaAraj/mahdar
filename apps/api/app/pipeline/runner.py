@@ -1,5 +1,3 @@
-"""Stage orchestration behind Pipeline: serial stages, the parallel pair, soft-fail analyze."""
-
 import logging
 import threading
 import time
@@ -15,8 +13,6 @@ log = logging.getLogger(__name__)
 
 
 class StageRunner:
-    """Drives one job through convert, the parallel pair, assemble, and analyze."""
-
     def __init__(self, registry: JobRegistry, job_id: str, stage_map: dict[str, Callable]) -> None:
         self._registry = registry
         self._job_id = job_id
@@ -36,7 +32,7 @@ class StageRunner:
         self._log.info("finished; total duration %.2fs", time.monotonic() - started)
 
     def run_analysis(self) -> bool:
-        """Analysis is soft-fail: its failure never drops a good transcript."""
+
         started = stages.begin(self._registry, self._job_id, "analyze")
         try:
             self._map["analyze"]()

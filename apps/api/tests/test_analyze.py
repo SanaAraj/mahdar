@@ -1,6 +1,3 @@
-"""Tests for the prompt builder, the reply cleaner, and the Groq analysis provider
-(all network access is mocked)."""
-
 import json
 import re
 
@@ -67,22 +64,22 @@ def _models_payload(*ids: str) -> dict:
 
 @pytest.fixture(autouse=True)
 def _reset_llm_caches(monkeypatch):
-    """Each test starts with a cold models cache and the reasoning flag on."""
+
     monkeypatch.setattr("app.features.analysis.llm_preflight._models_cache", None)
     monkeypatch.setattr("app.features.analysis.llm_groq._include_reasoning_supported", True)
-    monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)  # deterministic sleep assertions
+    monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     yield
 
 
 def _ready_models(model):
-    """Make the configured model appear in the preflight listing."""
+
     respx.get(constants.GROQ_API_BASE + constants.MODELS_API_PATH).mock(
         return_value=httpx.Response(200, json=_models_payload(model))
     )
 
 
 def _ready_posts(*responses):
-    """Register the chat endpoint and return its route for assertions."""
+
     if len(responses) == 1:
         return respx.post(constants.GROQ_API_BASE + constants.LLM_API_PATH).mock(
             return_value=responses[0]
@@ -90,9 +87,6 @@ def _ready_posts(*responses):
     return respx.post(constants.GROQ_API_BASE + constants.LLM_API_PATH).mock(
         side_effect=list(responses)
     )
-
-
-# ---------- building the user message ----------
 
 
 def test_user_message_header_and_lines():
@@ -112,7 +106,7 @@ def test_user_message_without_speakers():
     msg = prompts.build_user_message(META, bare, [])
     assert "المتحدثون: غير محددين (لم يجر فصل المتحدثين)" in msg
     assert "[s1] (00:00): جملة 0." in msg
-    # The raw SPEAKER_00 id never leaks when the speaker list is absent.
+
     assert "SPEAKER_00" not in msg
 
 
@@ -123,21 +117,21 @@ def test_format_clock_hours():
 
 
 def test_system_prompt_holds_hard_rules():
-    # The schema field names survive in the English contract.
+
     for token in ("segment_ids", "raw", "gregorian", "attendees"):
         assert token in prompts.SYSTEM_PROMPT
-    # The rules themselves are English (instruction-following surface).
+
     assert "faithful" in prompts.SYSTEM_PROMPT
     assert "priority" in prompts.SYSTEM_PROMPT
 
 
 def test_system_prompt_keeps_arabic_exemplars_only():
-    # Arabic survives only as embedded exemplars inside the English rules.
+
     assert "غدًا" in prompts.SYSTEM_PROMPT
     assert "نحتاج إلى رفع التقرير قبل نهاية الشهر" in prompts.SYSTEM_PROMPT
     assert "عالية" in prompts.SYSTEM_PROMPT
     assert "15 شعبان 1448" in prompts.SYSTEM_PROMPT
-    # The old Arabic instruction phrases were retired for English rules.
+
     assert "لا تخترع قرارًا" not in prompts.SYSTEM_PROMPT
     assert "الأولوية" not in prompts.SYSTEM_PROMPT
 
@@ -149,38 +143,28 @@ def test_arabic_output_message_is_english_instruction():
 
 
 def test_prompt_budget_guard():
-    """An over-budget user message raises before any network call."""
+
     bloated = "س " * 20000
     with pytest.raises(AnalysisError) as exc:
         prompts.ensure_within_budget(bloated)
     assert exc.value.message_key == "analysis.too_long"
-    # The estimate that tripped the guard is over the budget, not just nonzero.
+
     total = prompts.estimate_tokens(prompts.SYSTEM_PROMPT) + prompts.estimate_tokens(bloated)
     assert total > constants.MAX_PROMPT_TOKENS
 
 
-# ---------- the JSON reply cleaner ----------
-
-
 def test_think_tags_strip_to_clean_output():
-    """Regression: a corrupted _THINK_RE must fail here, not pass silently.
 
-    A reasoning model wraps its chain-of-thought in `<think>...</think>`
-    before the JSON object. The stripper must remove the whole tag so the
-    cleaner sees only the JSON; any wording or formatting change that breaks
-    the pattern would leave literal reasoning text or tags in the result, and
-    this test would fail.
-    """
     crafted = (
         "<think>I should consider the user's intent carefully.\n"
         "Let me think about the schema on a second line.</think>"
         '{"title": "محضر", "attendees": [], "topics": [], "decisions": [], '
         '"directives": [], "tasks": []}'
     )
-    # Feed the crafted reasoning-tagged payload through the stripper itself.
+
     stripped = strip_reasoning(crafted)
     assert "<think>" not in stripped and "consider" not in stripped
-    # And the cleaned output parses to exactly the intended object.
+
     data = _json_object(crafted)
     assert data["title"] == "محضر"
     assert "think" not in json.dumps(data, ensure_ascii=False).lower()
@@ -207,11 +191,8 @@ def test_json_object_rejects_garbage(content: str):
         _json_object(content)
 
 
-# ---------- the schema key repair ----------
-
-
 def test_normalize_schema_keys_repairs_uppercase_field_names():
-    """The observed reduce failure: uppercase keys mirrored from the block markers."""
+
     raw = {
         "TITLE": "محضر",
         "ATTENDEES": ["أحمد"],
@@ -231,8 +212,8 @@ def test_normalize_schema_keys_repairs_uppercase_field_names():
 def test_normalize_schema_keys_never_touches_values_or_unknown_keys():
     raw = {"TITLE": "TITLE", "extra_KEY": 1, "topics": [{"title": "TOPICS"}]}
     fixed = normalize_schema_keys(raw)
-    assert fixed["title"] == "TITLE"  # the value keeps its case
-    assert fixed["extra_KEY"] == 1  # unknown keys stay untouched
+    assert fixed["title"] == "TITLE"
+    assert fixed["extra_KEY"] == 1
     assert fixed["topics"][0]["title"] == "TOPICS"
 
 
@@ -240,12 +221,12 @@ def test_normalize_schema_keys_exact_field_wins_over_a_cased_duplicate():
     raw = {"title": "الصحيح", "TITLE": "مكرر"}
     fixed = normalize_schema_keys(raw)
     assert fixed["title"] == "الصحيح"
-    assert fixed["TITLE"] == "مكرر"  # left alone, ignored by the schema
+    assert fixed["TITLE"] == "مكرر"
 
 
 @respx.mock
 def test_uppercase_reply_repairs_without_a_correction_roundtrip():
-    """A first reply with uppercase keys validates deterministically in one call."""
+
     _ready_models(constants.DEFAULT_LLM_MODEL)
     payload = {
         "TITLE": "متابعة خطة العمل",
@@ -261,10 +242,7 @@ def test_uppercase_reply_repairs_without_a_correction_roundtrip():
     result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert result.title == "متابعة خطة العمل"
     assert result.topics[0].summary == "استعرضنا الخطة"
-    assert len(route.calls) == 1  # repaired before validation, no second call spent
-
-
-# ---------- the model preflight ----------
+    assert len(route.calls) == 1
 
 
 @respx.mock
@@ -287,7 +265,7 @@ def test_preflight_passes_for_a_present_model():
 
 @respx.mock
 def test_preflight_failure_skips_the_check_and_is_not_cached():
-    """A failed listing means unknown: analysis proceeds and the next call refetches."""
+
     models_route = respx.get(constants.GROQ_API_BASE + constants.MODELS_API_PATH).mock(
         side_effect=[
             httpx.Response(500, text="upstream down"),
@@ -303,13 +281,13 @@ def test_preflight_failure_skips_the_check_and_is_not_cached():
     assert extractor.extract(META, SENTENCES, SPEAKERS).title == "متابعة خطة العمل"
     assert extractor.extract(META, SENTENCES, SPEAKERS).title == "متابعة خطة العمل"
     extractor.extract(META, SENTENCES, SPEAKERS)
-    # One failed fetch, one successful fetch cached for the rest of the process.
+
     assert len(models_route.calls) == 2
 
 
 @respx.mock
 def test_preflight_empty_listing_never_claims_retirement():
-    """An empty listing is unknown, not proof the configured model retired."""
+
     respx.get(constants.GROQ_API_BASE + constants.MODELS_API_PATH).mock(
         return_value=httpx.Response(200, json={"data": []})
     )
@@ -330,9 +308,6 @@ def test_preflight_is_cached_for_the_process():
     extractor.extract(META, SENTENCES, SPEAKERS)
     extractor.extract(META, SENTENCES, SPEAKERS)
     assert len(models_route.calls) == 1
-
-
-# ---------- GroqMinutesExtractor ----------
 
 
 @respx.mock
@@ -413,7 +388,7 @@ def test_extract_retries_on_429_then_succeeds(monkeypatch):
     result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert result.title == "متابعة خطة العمل"
     assert len(route.calls) == 2
-    # The hinted 120s waits out the tokens-per-minute window but is capped.
+
     assert slept == [constants.RETRY_AFTER_MAX_S]
 
 
@@ -458,11 +433,7 @@ def test_extract_missing_key_fails_before_network():
 
 @respx.mock
 def test_extract_overlong_prompt_enters_map_reduce(monkeypatch):
-    """An over-budget prompt no longer fails: it dispatches to map-reduce.
 
-    The dispatch itself is asserted in tests/test_map_reduce.py; here we only
-    pin that the single fast path is bypassed and a window call is attempted.
-    """
     _ready_models(constants.DEFAULT_LLM_MODEL)
     calls: list[str] = []
     monkeypatch.setattr(
@@ -478,12 +449,9 @@ def test_extract_overlong_prompt_enters_map_reduce(monkeypatch):
 
 def test_correction_message_trims_whitespace():
     msg = prompts.build_correction_message("  أخطاء   كثيرة\n\nومتفرقة  ")
-    assert re.search(r"\s{2,}", msg) is None  # consecutive spaces are removed
+    assert re.search(r"\s{2,}", msg) is None
 
 
-# ---------- the Arabic-output guard ----------
-
-# An English-only reply: schema-valid, but no Arabic in title or topic summaries.
 ENGLISH_ONLY_JSON = json.dumps(
     {
         "title": "Work plan review",
@@ -514,8 +482,8 @@ def test_english_only_reply_retries_once_then_succeeds_when_arabic():
     )
     result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert result.title == "متابعة خطة العمل"
-    assert len(route.calls) == 2  # exactly one retry, then success
-    # The retry carried the English corrective line, not the schema correction.
+    assert len(route.calls) == 2
+
     second = json.loads(route.calls[1].request.content)
     assert second["messages"][-2]["role"] == "assistant"
     assert "Arabic" in second["messages"][-1]["content"]
@@ -532,7 +500,7 @@ def test_english_only_again_after_retry_raises():
     with pytest.raises(AnalysisError) as exc:
         GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert exc.value.message_key == "analysis.failed"
-    assert len(route.calls) == 2  # one retry, then the second failure raises
+    assert len(route.calls) == 2
 
 
 @respx.mock
@@ -553,7 +521,7 @@ def test_arabic_reply_does_not_trigger_a_second_post():
     _ready_models(constants.DEFAULT_LLM_MODEL)
     route = _ready_posts(httpx.Response(200, json=_envelope(ANALYSIS_JSON)))
     GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
-    assert len(route.calls) == 1  # a grounded Arabic reply needs no retry
+    assert len(route.calls) == 1
 
 
 def test_has_arabic_output_detects_language():
@@ -561,5 +529,5 @@ def test_has_arabic_output_detects_language():
     english = Analysis(title="Work plan review", topics=[Topic(title="Plan", summary="Review")])
     assert _has_arabic_output(arabic) is True
     assert _has_arabic_output(english) is False
-    # A title alone in Arabic is enough; topics may be empty.
+
     assert _has_arabic_output(Analysis(title="اجتماع", topics=[])) is True

@@ -1,5 +1,3 @@
-"""Shared OpenAI-compatible chat transport for minutes extraction: Groq and local Ollama."""
-
 import logging
 
 import httpx
@@ -16,8 +14,6 @@ _LOCAL_LABEL = "Local LLM"
 
 
 class ChatConfig:
-    """One chat endpoint's knobs; include_reasoning_support is a shared mutable [bool] cell."""
-
     def __init__(
         self,
         *,
@@ -42,8 +38,6 @@ class ChatConfig:
 
 
 class GroqChatConfig(ChatConfig):
-    """The cloud default: Groq's chat endpoint under Bearer auth."""
-
     def __init__(self, settings, include_reasoning_support: list[bool] | None = None) -> None:
         super().__init__(
             label=_GROQ_LABEL,
@@ -64,19 +58,17 @@ class GroqChatConfig(ChatConfig):
 
 
 class LocalChatConfig(ChatConfig):
-    """The offline fallback: a local Ollama server, reachable with no key."""
-
     def __init__(self, settings, include_reasoning_support: list[bool] | None = None) -> None:
         super().__init__(
             label=_LOCAL_LABEL,
-            failure_error_cls=AnalysisError,  # routed to local copy by the key prefix
+            failure_error_cls=AnalysisError,
             error_key="local_llm",
             include_reasoning_support=include_reasoning_support,
         )
         self._settings = settings
 
     def key_or_none(self) -> None:
-        return None  # Ollama serves with no auth
+        return None
 
     def url(self) -> str:
         return self._settings.ollama_url.rstrip("/") + constants.LLM_API_PATH
@@ -86,8 +78,6 @@ class LocalChatConfig(ChatConfig):
 
 
 class ChatProviderTransport:
-    """One OpenAI-compatible chat client; the request the cloud and local share."""
-
     def __init__(self, config: ChatConfig) -> None:
         self._c = config
 
@@ -154,7 +144,7 @@ def _is_param_rejection(resp: httpx.Response, param: str) -> bool:
 
 
 def _log_usage(resp: httpx.Response, label: str) -> None:
-    """Log the API's measured token usage: ground truth for the prompt-size estimates."""
+
     try:
         usage = resp.json().get("usage") or {}
         prompt = usage.get("prompt_tokens")

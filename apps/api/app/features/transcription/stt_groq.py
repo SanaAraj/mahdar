@@ -1,5 +1,3 @@
-"""Speech-to-text via the Groq audio endpoint, splitting long files at silence."""
-
 import logging
 from pathlib import Path
 
@@ -18,11 +16,11 @@ _LABEL = "Groq STT"
 _TEXT_KEYS = ("word", "text", "token", "segment")
 _SEGMENT_STAT_KEYS: tuple[str, ...] = ("no_speech_prob", "avg_logprob", "compression_ratio")
 _API_URL = constants.GROQ_API_BASE + constants.STT_API_PATH
-_FALLBACK_WORD_DURATION_S: float = 1.0  # full-text-only reply gets one 1 s word
+_FALLBACK_WORD_DURATION_S: float = 1.0
 
 
 def _word_span(item: dict, offset: float) -> tuple[float, float] | None:
-    """A payload item's offset-corrected [start, end]; None when it lacks them."""
+
     try:
         return float(item["start"]) + offset, float(item["end"]) + offset
     except (KeyError, TypeError, ValueError):
@@ -34,7 +32,7 @@ def _duration_of(path: Path) -> float:
 
 
 def _assert_part_span(probed: float, intended: float) -> None:
-    """Fail loudly when a split part's measured length drifts past the overlap slack."""
+
     if abs(probed - intended) > constants.PART_WORD_OVERLAP_S:
         raise AudioError(
             "audio.split_failed",
@@ -43,8 +41,6 @@ def _assert_part_span(probed: float, intended: float) -> None:
 
 
 class GroqTranscriber:
-    """Streams audio to Groq from disk (never buffered); oversized files are split at silence."""
-
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
@@ -160,7 +156,7 @@ class GroqTranscriber:
     def _slice_segment(
         self, text: str, start: float, end: float, stats: dict[str, float] | None = None
     ) -> list[Word]:
-        """Spread a segment's text over its time span, one Word per token."""
+
         fields = stats or {}
         tokens = text.split()
         if len(tokens) <= 1:
@@ -182,7 +178,7 @@ def _first_text(item: dict) -> str:
 
 
 def _segment_stats_of(segment: dict) -> dict[str, float]:
-    """Whisper segment quality stats, kept for downstream cleanup; floats only."""
+
     stats: dict[str, float] = {}
     for key in _SEGMENT_STAT_KEYS:
         value = segment.get(key)

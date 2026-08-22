@@ -1,8 +1,3 @@
-"""Resilience edges through the mocked pipeline: near-silence, corrupt audio,
-and a single-speaker clip. The pipeline runs for real against a generated wav;
-only the providers are mocked, as in tests/test_api.py.
-"""
-
 import json
 import subprocess
 import time
@@ -34,7 +29,7 @@ WAIT_TIMEOUT_S = 15.0
 
 @pytest.fixture
 def near_silence_wav(tmp_path: Path) -> Path:
-    """A 20-second near-silence clip: a real wav the convert stage can probe."""
+
     path = tmp_path / "silence.wav"
     subprocess.run(
         [
@@ -60,6 +55,8 @@ def one_speaker_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("MAX_UPLOAD_MB", "5")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("HF_TOKEN", "hf-test")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
     return TestClient(create_app())
 
@@ -77,8 +74,7 @@ def _wait(client: TestClient, job_id: str) -> dict:
 def test_near_silence_finishes_clean_with_few_sentences(
     one_speaker_client: TestClient, near_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A 20s near-silence clip yields zero words, hence zero sentences, and the
-    job still reaches done with a clean analysis of the empty transcript."""
+
     monkeypatch.setattr(GroqTranscriber, "transcribe", lambda self, w, m: [])
     monkeypatch.setattr(
         GroqMinutesExtractor,
@@ -94,8 +90,8 @@ def test_near_silence_finishes_clean_with_few_sentences(
         ).json()["id"]
     job = _wait(one_speaker_client, job_id)
     assert job["status"] == JobStatus.DONE
-    assert job["sentences"] == []  # no speech became no sentences, none invented
-    # No repeated-sentence hallucination: whatever words stayed are few and unique.
+    assert job["sentences"] == []
+
     texts = [s["text"] for s in job["sentences"]]
     assert len(texts) == len(set(texts))
 
@@ -103,11 +99,10 @@ def test_near_silence_finishes_clean_with_few_sentences(
 def test_corrupt_upload_yields_arabic_audio_error(
     one_speaker_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A file that ffmpeg cannot decode fails the convert stage with the Arabic
-    corrupt-audio message, so the UI surfaces a clean reason, never a trace."""
+
     monkeypatch.setattr(GroqTranscriber, "transcribe", lambda self, w, m: [])
     bad = tmp_path / "broken.wav"
-    bad.write_bytes(b"not a real wav at all, just bytes")
+    bad.write_bytes(b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 200)
     with bad.open("rb") as fh:
         job_id = one_speaker_client.post(
             "/api/meetings", files={"audio": ("broken.wav", fh, "audio/wav")}
@@ -120,8 +115,7 @@ def test_corrupt_upload_yields_arabic_audio_error(
 def test_single_speaker_clip_yields_one_speaker_chip(
     one_speaker_client: TestClient, near_silence_wav: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A diarizer that returns one turn for the whole clip yields exactly one
-    speaker chip on the wire, not an empty or duplicated bar."""
+
     from .factories import make_words
 
     monkeypatch.setattr(
@@ -145,16 +139,13 @@ def test_single_speaker_clip_yields_one_speaker_chip(
     assert job["status"] == JobStatus.DONE
     assert len(job["speakers"]) == 1
     assert job["speakers"][0]["id"] == "SPEAKER_00"
-    # The one cell stays consistent on a registry reload.
+
     fresh = JobRegistry(one_speaker_client.app.state.settings.data_dir)
     assert len(fresh.get(job_id).speakers) == 1
 
 
-# ---------- interrupted jobs settle at boot ----------
-
-
 def _stages(**states) -> list[Stage]:
-    """The five pipeline stages with per-key states (default pending)."""
+
     return [
         Stage(
             key=key,
@@ -174,7 +165,7 @@ def _write_state(tmp_path: Path, job: MeetingJob) -> Path:
 
 
 def test_interrupted_job_reloads_as_failed_not_spinning(tmp_path: Path):
-    """A restart mid-transcription must not reload as running forever."""
+
     job = MeetingJob(
         id="feedfacecafe",
         status=JobStatus.TRANSCRIBING,
@@ -185,12 +176,12 @@ def test_interrupted_job_reloads_as_failed_not_spinning(tmp_path: Path):
     assert loaded.status == JobStatus.FAILED
     assert loaded.error_ar == strings.resolve("transcription.unexpected")
     assert all(stage.state != StageState.RUNNING for stage in loaded.stages)
-    # The settled state is persisted, so the next boot needs no repair.
+
     assert json.loads(state_path.read_text("utf-8"))["status"] == "failed"
 
 
 def test_interrupted_analysis_keeps_the_transcript_usable(tmp_path: Path):
-    """A crash mid-analysis keeps the meeting done, with a retryable analyze note."""
+
     job = MeetingJob(
         id="feedfacecaff",
         status=JobStatus.ANALYZING,

@@ -1,5 +1,3 @@
-"""Tests for the deterministic date-normalization layer: relative, explicit Gregorian, and Hijri."""
-
 from datetime import date
 
 import pytest
@@ -8,7 +6,6 @@ from hijridate import Gregorian, Hijri
 from app.features.analysis import dates
 from app.features.analysis.dates import normalize
 
-# Tuesday 18 August 2026, corresponding to 5 Rabi' al-Awwal 1448.
 ANCHOR = date(2026, 8, 18)
 
 
@@ -31,12 +28,12 @@ def _hijri(g: date) -> str:
         ("بعد شهرين", date(2026, 10, 18)),
         ("بعد 3 أشهر", date(2026, 11, 18)),
         ("الأسبوع القادم", date(2026, 8, 25)),
-        ("نهاية الأسبوع", date(2026, 8, 21)),  # الجمعة القادمة (قرار موثق)
-        ("نهاية أسبوع العمل", date(2026, 8, 20)),  # الخميس القادم
+        ("نهاية الأسبوع", date(2026, 8, 21)),
+        ("نهاية أسبوع العمل", date(2026, 8, 20)),
         ("نهاية الشهر", date(2026, 8, 31)),
         ("نهاية الشهر القادم", date(2026, 9, 30)),
         ("نهاية الشهر المقبل", date(2026, 9, 30)),
-        ("الخميس القادم", date(2026, 8, 27)),  # the next Thursday cycle, not tomorrow
+        ("الخميس القادم", date(2026, 8, 27)),
         ("الجمعة القادم", date(2026, 8, 28)),
         ("يوم الأحد القادم", date(2026, 8, 30)),
     ],
@@ -48,8 +45,8 @@ def test_relative_phrases(raw: str, expected: date):
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("8/12/2026", date(2026, 12, 8)),  # Arabic order day/month/year
-        ("15/8/2026", date(2026, 8, 15)),  # a day above 12 is a day, not a month
+        ("8/12/2026", date(2026, 12, 8)),
+        ("15/8/2026", date(2026, 8, 15)),
         ("2026-12-25", date(2026, 12, 25)),
         ("31/12/2026", date(2026, 12, 31)),
     ],
@@ -72,7 +69,7 @@ def test_explicit_hijri_with_year(raw: str, hijri_iso: str):
 
 
 def test_hijri_to_gregorian_and_back():
-    """Both directions: an explicit Hijri date to Gregorian and back identically."""
+
     greg = Hijri(1448, 9, 1).to_gregorian()
     assert _hijri(greg) == "1448-09-01"
     assert normalize("1 رمضان 1448", ANCHOR) == greg
@@ -88,15 +85,15 @@ def test_gregorian_model_helper_round_trip():
 @pytest.mark.parametrize(
     "raw",
     [
-        "15 محرم",  # no Hijri year: a genuine ambiguity, never guessed
+        "15 محرم",
         "ربيع الأول",
-        "بعد 2 أيام",  # below the Arabic plural threshold
+        "بعد 2 أيام",
         "بعد 400 يوم",
         "متى ما اتفقنا",
         "قريبًا",
-        "الشهر القادم",  # a bare month with no "end" pins no date
-        "عيد الفطر",  # an occasion with no calendar mapped here
-        "الأسبوع اللي بعده",  # a dialectal form deliberately out of scope
+        "الشهر القادم",
+        "عيد الفطر",
+        "الأسبوع اللي بعده",
         "",
         None,
     ],
@@ -117,6 +114,6 @@ def test_month_end_leap_year():
 
 
 def test_calendar_month_clamps_short_months():
-    """From 31 January, "after a month" lands on 28/29 February, never March."""
+
     assert normalize("بعد شهر", date(2026, 1, 31)) == date(2026, 2, 28)
     assert normalize("بعد شهرين", date(2026, 1, 31)) == date(2026, 3, 31)

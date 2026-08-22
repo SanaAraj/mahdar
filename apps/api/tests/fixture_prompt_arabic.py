@@ -1,15 +1,3 @@
-"""Test-only fixture: the previous all-Arabic extraction system prompt.
-
-Used solely by the phase-6 prompt A/B evaluation. It is never imported by the
-app and never wired into any provider; the live prompt is prompts.SYSTEM_PROMPT
-(English rules with Arabic exemplars). The two prompts share one schema-example
-contract so their outputs are directly comparable, and every instruction here
-is written in Arabic. This file ships with the repo as the honest record of
-what was compared; the app never reads it.
-"""
-
-# The same JSON shape contract the live prompt uses, with the same Arabic
-# placeholders; the A/B only swaps the language of the rules, not the schema.
 _SCHEMA_EXAMPLE = """{
   "title": "نص",
   "attendees": ["اسم"],

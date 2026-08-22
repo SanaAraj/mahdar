@@ -1,9 +1,3 @@
-"""Assemble the analysis stage: extraction, citation cleaning, and date fill.
-
-Kept apart from pipeline.py so the orchestrator stays linear; these are the
-helpers the analyze stage composes, all operating on plain models.
-"""
-
 import json
 from datetime import date
 from zoneinfo import ZoneInfo
@@ -35,7 +29,7 @@ def anchor_date_of(created_at) -> date:
 
 
 def clean_citations(analysis: Analysis, sentences: list[Sentence]) -> tuple[Analysis, int]:
-    """Drop analysis items without a real sentence source or a wording overlap."""
+
     return citations.validate(analysis, sentences)
 
 
@@ -60,22 +54,15 @@ def read_turns(job_dir) -> list[Turn]:
 
 
 def apply_meeting_task_dates(analysis: Analysis, anchor) -> None:
-    """Resolve relative dates against the meeting date and fill Hijri from Gregorian.
 
-    The deterministic normalization layer wins over the model's own date when
-    it understands the phrase; whatever it cannot parse keeps the model's value
-    if valid, otherwise stays null.
-    """
     for task in analysis.tasks:
         due = task.due
         normalized = dates.normalize(due.raw, anchor)
         if normalized is not None:
-            # The deterministic layer wins: the model's own date is ignored.
             due.gregorian = normalized.isoformat()
             due.hijri = gregorian_hijri(normalized.isoformat())
             continue
         if due.raw is None:
-            # The no-invention rule: no date was said, so the UI shows none.
             due.gregorian = None
             due.hijri = None
             continue

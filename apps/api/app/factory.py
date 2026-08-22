@@ -1,12 +1,3 @@
-"""Provider factory: selects the concrete providers from the env selectors.
-
-STT_PROVIDER and LLM_PROVIDER each accept "groq" (the cloud default) or
-"local" (the offline fallback). An unknown value never crashes app startup:
-the factory returns a stub whose stage call raises the config error, so the
-pipeline records a clear Arabic message on the failed stage exactly like any
-other stage failure.
-"""
-
 import logging
 
 from app.config import Settings
@@ -23,8 +14,6 @@ _VALID_PROVIDERS: frozenset[str] = frozenset({"groq", "local"})
 
 
 class _UnknownTranscriber:
-    """Stage-facing stub for an unrecognized STT_PROVIDER value."""
-
     def __init__(self, value: str) -> None:
         self._value = value
 
@@ -33,8 +22,6 @@ class _UnknownTranscriber:
 
 
 class _UnknownExtractor:
-    """Stage-facing stub for an unrecognized LLM_PROVIDER value."""
-
     def __init__(self, value: str) -> None:
         self._value = value
 
@@ -63,7 +50,7 @@ def build_extractor(settings: Settings) -> MinutesExtractor:
 
 
 def _validate_providers(settings: Settings) -> None:
-    """Boot-time log line so an unknown selector is visible before any job runs."""
+
     for key, value in (
         ("STT_PROVIDER", settings.stt_provider),
         ("LLM_PROVIDER", settings.llm_provider),

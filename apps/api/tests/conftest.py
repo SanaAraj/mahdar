@@ -1,5 +1,3 @@
-"""Shared fixtures: a two-second sine wave as a real audio upload."""
-
 import subprocess
 from pathlib import Path
 

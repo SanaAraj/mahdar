@@ -1,10 +1,3 @@
-"""The Ollama local extractor against a mocked OpenAI-compatible endpoint.
-
-The local extractor must reuse every shared guard (schema retry, Arabic-output
-retry, reasoning stripper, budgets) while skipping the Groq key and the live
-/models preflight. All HTTP is respx-mocked; no model is ever downloaded.
-"""
-
 import json
 
 import httpx
@@ -85,18 +78,18 @@ def test_local_extract_hits_ollama_without_auth_or_preflight():
     assert result.title == "متابعة خطة العمل"
     assert route.called, "the local chat endpoint must be called"
     request = route.calls[0].request
-    assert "authorization" not in request.headers  # Ollama serves with no auth
+    assert "authorization" not in request.headers
     body = json.loads(request.content)
     assert body["model"] == "qwen3:8b"
-    assert "include_reasoning" not in body  # local endpoint never got the flag
-    assert not models_route.called  # no /models preflight on the local path
+    assert "include_reasoning" not in body
+    assert not models_route.called
 
 
 @respx.mock
 def test_local_extractor_runs_no_network_before_a_post():
-    """Unlike Groq, extract must not gate on a key or a preflight listing."""
+
     route = respx.post(CHAT_URL).mock(return_value=httpx.Response(200, json=_envelope(ARABIC_JSON)))
-    # No /models route registered at all: any preflight would raise ConnectError.
+
     LocalMinutesExtractor(_settings(groq_api_key="")).extract(META, SENTENCES, SPEAKERS)
     assert route.called
 
@@ -155,7 +148,7 @@ def test_local_5xx_maps_to_unavailable():
 
 
 def test_has_arabic_output_guard_semantics_unchanged():
-    # The guard the local path reuses treats an Arabic title as grounded.
+
     assert_ = Analysis(title="اجتماع", topics=[Topic(title="خطة", summary="مراجعة")])
     from app.features.analysis.llm_parse import has_arabic_output
 

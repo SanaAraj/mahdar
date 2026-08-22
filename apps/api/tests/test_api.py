@@ -33,7 +33,7 @@ def fake_transcribe(self, wav_path: Path, mp3_path: Path):
 
 
 def fake_analysis(title="اجتماع متابعة"):
-    """A fake analysis grounded in the transcript: 'كلمة' grounds s1, 'تقرير' grounds s2."""
+
     return Analysis(
         title=title,
         attendees=["المتحدث 1", "المتحدث 2"],
@@ -65,7 +65,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def silent_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A client without diarization (no token) to cover the degraded mode."""
+
     return _make_client(tmp_path, monkeypatch, with_diaries=False)
 
 
@@ -75,6 +75,8 @@ def _make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_diaries: 
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("HF_TOKEN", "hf-test" if with_diaries else "")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
     monkeypatch.setattr(GroqTranscriber, "transcribe", fake_transcribe)
     monkeypatch.setattr(GroqMinutesExtractor, "extract", fake_extract)
@@ -107,7 +109,7 @@ def test_health(client: TestClient):
 
 
 def test_pipeline_log_lines_carry_job_id_and_total(client: TestClient, wav_file: Path, caplog):
-    """Every pipeline log line for this run names the job id, with one total line."""
+
     with caplog.at_level("INFO"):
         with wav_file.open("rb") as fh:
             job_id = client.post(
@@ -115,7 +117,7 @@ def test_pipeline_log_lines_carry_job_id_and_total(client: TestClient, wav_file:
             ).json()["id"]
         _wait_until_done(client, job_id)
     lines = [r.getMessage() for r in caplog.records if job_id in r.getMessage()]
-    # The stage transitions, the finish line, and any citation note all carry it.
+
     assert any("stage convert" in m for m in lines)
     assert any("finished; total duration" in m for m in lines)
 
@@ -138,9 +140,9 @@ def test_happy_upload_with_speakers(client: TestClient, wav_file: Path):
     }
     assert len(job["speakers"]) == 2
     assert {sp["id"] for sp in job["speakers"]} == {"SPEAKER_00", "SPEAKER_01"}
-    # The first sentence (0..~0.85s) maps to SPEAKER_00 inside 0..5.
+
     assert job["sentences"][0]["speaker"] == "SPEAKER_00"
-    # The audio badge is available.
+
     audio_resp = client.get(f"/api/meetings/{job_id}/audio")
     assert audio_resp.status_code == 200
     assert audio_resp.headers["content-type"] == "audio/mpeg"
@@ -158,12 +160,12 @@ def test_degraded_mode_no_token(silent_client: TestClient, wav_file: Path):
     assert job["speakers"] == []
     diarize_stage = next(s for s in job["stages"] if s["key"] == "diarize")
     assert diarize_stage["note_ar"] == strings.resolve("diarize.skipped")
-    # Every sentence without a speaker.
+
     assert all(s["speaker"] is None for s in job["sentences"])
 
 
 def test_diarize_skip_logs_at_info_not_error(silent_client: TestClient, wav_file: Path, caplog):
-    """Diarization is skippable: its miss logs at INFO with skip wording, never ERROR."""
+
     with caplog.at_level("INFO"):
         with wav_file.open("rb") as fh:
             job_id = silent_client.post(
@@ -190,7 +192,7 @@ def test_rejected_extension(client: TestClient, tmp_path: Path):
 
 def test_oversized_file_rejected(client: TestClient, tmp_path: Path):
     big = tmp_path / "big.wav"
-    big.write_bytes(b"\x00" * (1024 * 1024 + 10))
+    big.write_bytes(b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * (1024 * 1024 + 10 - 12))
     with big.open("rb") as fh:
         resp = client.post("/api/meetings", files={"audio": ("big.wav", fh, "audio/wav")})
     assert resp.status_code == 413
@@ -200,12 +202,7 @@ def test_oversized_file_rejected(client: TestClient, tmp_path: Path):
 
 
 def test_oversized_stream_is_cut_midway(tmp_path: Path):
-    """An over-cap upload is rejected as soon as the running count crosses the cap.
 
-    A fake upload that always has more bytes ready proves the loop aborts after
-    the first chunk past the cap and deletes the partial file, instead of
-    draining the whole body. The cap here is one chunk smaller than the body.
-    """
     from app.features.meetings.upload import save_upload as _save_upload
     from app.shared.errors import UploadError
 
@@ -213,9 +210,13 @@ def test_oversized_stream_is_cut_midway(tmp_path: Path):
 
     class EndlessUpload:
         filename = "big.wav"
+        _sent_header = False
 
         async def read(self, n: int) -> bytes:
-            return b"\x00" * n  # always has another chunk ready
+            if not self._sent_header:
+                self._sent_header = True
+                return b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * (n - 12)
+            return b"\x00" * n
 
         async def close(self) -> None:
             pass
@@ -224,15 +225,15 @@ def test_oversized_stream_is_cut_midway(tmp_path: Path):
     with pytest.raises(UploadError) as exc_info:
         asyncio.run(_save_upload(EndlessUpload(), dst, chunk))
     assert exc_info.value.message_key == "upload.file_too_large"
-    # The partial file is removed the moment the cap is crossed.
+
     assert not dst.exists()
 
 
 def test_upload_exactly_at_cap_is_stored(tmp_path: Path):
-    """A body whose size equals the cap is written to disk, not rejected."""
+
     from app.features.meetings.upload import save_upload as _save_upload
 
-    payload = b"\x01" * 64
+    payload = b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 52
     reads = iter([payload, b""])
 
     class SmallUpload:
@@ -270,8 +271,11 @@ def test_missing_api_key_fails_job(tmp_path: Path, wav_file: Path, monkeypatch):
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     monkeypatch.setenv("GROQ_API_KEY", "")
     monkeypatch.setenv("HF_TOKEN", "")
+
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
-    # No transcription mock here: the job must fail at once, with no network.
+
     failing = TestClient(create_app())
     with wav_file.open("rb") as fh:
         job_id = failing.post("/api/meetings", files={"audio": ("m.wav", fh, "audio/wav")}).json()[
@@ -281,9 +285,6 @@ def test_missing_api_key_fails_job(tmp_path: Path, wav_file: Path, monkeypatch):
     assert job["status"] == JobStatus.FAILED
     assert job["error_ar"] == strings.resolve("groq.key_missing")
     get_settings.cache_clear()
-
-
-# ---------- PATCH /api/meetings/{id}/speakers ----------
 
 
 def test_patch_speakers_happy_path(client: TestClient, wav_file: Path):
@@ -299,7 +300,7 @@ def test_patch_speakers_happy_path(client: TestClient, wav_file: Path):
     assert resp.status_code == 200
     speakers = {s["id"]: s["label"] for s in resp.json()}
     assert speakers["SPEAKER_00"] == "أحمد"
-    assert speakers["SPEAKER_01"] == "سارة"  # trailing whitespace is stripped
+    assert speakers["SPEAKER_01"] == "سارة"
 
     persisted = client.get(f"/api/meetings/{job_id}").json()
     assert persisted["speakers"][0]["label"] == "أحمد"
@@ -363,15 +364,12 @@ def test_persists_state_across_registry_reload(client: TestClient, wav_file: Pat
         ]
     _wait_until_done(client, job_id)
     client.patch(f"/api/meetings/{job_id}/speakers", json={"speakers": {"SPEAKER_00": "أحمد"}})
-    # Reload from disk through a fresh registry to prove persistence.
+
     fresh = JobRegistry(client.app.state.settings.data_dir)
     reloaded = fresh.get(job_id)
     assert reloaded is not None
     assert reloaded.status == JobStatus.DONE
     assert any(sp.id == "SPEAKER_00" and sp.label == "أحمد" for sp in reloaded.speakers)
-
-
-# ---------- the analyze stage and POST /api/meetings/{id}/analyze ----------
 
 
 def test_analysis_stored_and_dates_set(client: TestClient, wav_file: Path):
@@ -396,6 +394,9 @@ def test_analysis_soft_fail_keeps_job_done(tmp_path: Path, monkeypatch, wav_file
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("HF_TOKEN", "")
+
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
     monkeypatch.setattr(GroqTranscriber, "transcribe", fake_transcribe)
     monkeypatch.setattr(GroqMinutesExtractor, "extract", failing_extract)

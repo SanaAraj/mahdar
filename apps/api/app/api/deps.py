@@ -11,8 +11,6 @@ JOB_ID_RE = re.compile(rf"^[0-9a-f]{{{constants.JOB_ID_LENGTH}}}$")
 
 
 class MessageError(Exception):
-    """An API-boundary error that the handler renders as {"error_ar", "code"}."""
-
     def __init__(self, status_code: int, message_key: str) -> None:
         super().__init__(message_key)
         self.status_code = status_code

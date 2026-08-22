@@ -1,7 +1,3 @@
-"""Tests for the map-reduce analysis path: window budgeting, per-window mapping,
-id remapping, the reduce merge, and the dispatch between the two paths (all
-network access is mocked)."""
-
 import json
 import re
 from datetime import date
@@ -66,13 +62,8 @@ def _post_route():
     return respx.post(constants.GROQ_API_BASE + constants.LLM_API_PATH)
 
 
-# ---------- the pure window builder ----------
-
-
 def test_windows_split_on_sentence_boundaries_never_inside():
-    # Each sentence estimates over the per-window budget used here, so a budget
-    # of 1200 can hold only one 280-word sentence per window and must yield ten
-    # ordered windows, each a whole sentence.
+
     sentences = [_sentence(f"s{i + 1}", 280, float(i) * 3.0) for i in range(10)]
     budget = 1200
     windows = split_into_windows(sentences, budget=budget)
@@ -82,8 +73,7 @@ def test_windows_split_on_sentence_boundaries_never_inside():
 
 
 def test_windows_respect_exact_budget_boundary():
-    # Each sentence estimates exactly 100 tokens by padding; a budget of 200
-    # packs exactly two per window with no overlap onto a third.
+
     sentences = []
     cursor = 0.0
     for i in range(5):
@@ -101,14 +91,11 @@ def test_windows_single_sentence_under_budget_stays_one_call():
 
 
 def test_windows_oversize_single_sentence_raises_budget_error():
-    # A sentence longer than the whole window budget cannot be split further.
+
     sentences = [_sentence("s1", 6000, 0.0)]
     with pytest.raises(AnalysisError) as exc:
         split_into_windows(sentences)
     assert exc.value.message_key == "analysis.too_long"
-
-
-# ---------- the fused-pair similarity helper ----------
 
 
 def test_map_similar_fuses_near_identical_wording():
@@ -129,9 +116,6 @@ def test_map_similar_keeps_distinct_items_separate():
     assert citations.map_similar(a, b) is False
 
 
-# ---------- the two-window mocked end-to-end merge ----------
-
-
 def _two_window_analysis(decision_text: str, sids: list[str], title: str) -> str:
     return json.dumps(
         {
@@ -147,9 +131,7 @@ def _two_window_analysis(decision_text: str, sids: list[str], title: str) -> str
 
 
 def test_two_window_merge_deduplicates_and_unions_ids():
-    # Windows keep their real global ids on the wire; grounding keeps the cited
-    # ids that belong to the window and drops foreign ones, and the
-    # near-identical ruling fuses into one decision.
+
     window_a = [_sentence("s1", 3, 0.0), _sentence("s2", 3, 3.0)]
     window_b = [_sentence("s3", 3, 6.0), _sentence("s4", 3, 9.0)]
     part_a = Analysis.model_validate_json(_two_window_analysis("اعتماد الخطة", ["s1"], "اجتماع"))
@@ -160,7 +142,7 @@ def test_two_window_merge_deduplicates_and_unions_ids():
     grounded_a = mapreduce._ground_window_ids(part_a, window_a)
     grounded_b = mapreduce._ground_window_ids(part_b, window_b)
     assert grounded_a.decisions[0].segment_ids == ["s1"]
-    # s1 is not a sentence of window b, so it is dropped there, never remapped.
+
     assert grounded_b.decisions[0].segment_ids == ["s3"]
 
     merged = mapreduce._merge_fallback(
@@ -178,12 +160,9 @@ def test_two_window_merge_deduplicates_and_unions_ids():
     assert merged.decisions[0].segment_ids == ["s1", "s3"]
 
 
-# ---------- the single-window bypass proof ----------
-
-
 @respx.mock
 def test_single_window_stays_on_the_fast_path(monkeypatch):
-    """A transcript under budget never touches the window or reduce prompts."""
+
     _ready_models(constants.DEFAULT_LLM_MODEL)
     route = _post_route().mock(
         return_value=httpx.Response(
@@ -206,29 +185,23 @@ def test_single_window_stays_on_the_fast_path(monkeypatch):
     sentences = [_sentence("s1", 3, 0.0)]
     result = GroqMinutesExtractor(_settings()).extract(META, sentences, SPEAKERS)
     assert result.title == "متابعة قصيرة"
-    assert len(route.calls) == 1  # exactly one POST: no windows, no reduce
-
-
-# ---------- the mocked two-window HTTP flow ----------
+    assert len(route.calls) == 1
 
 
 @respx.mock
 def test_over_budget_transcript_routes_through_windows_and_reduce(monkeypatch):
-    """An over-budget transcript runs as one map call per window, then one reduce call."""
+
     _ready_models(constants.DEFAULT_LLM_MODEL)
-    # The mock answers like a compliant model, citing the ids each prompt shows;
-    # the number of map calls equals the window count, asserted below.
+
     route = _post_route().mock(side_effect=_cite_shown_ids_reply)
-    # A tiny patched window budget holds one 280-word sentence per window. A
-    # 280-word sentence estimates ~1152 tokens, so six of them (~6912 plus the
-    # header) clear MAX_PROMPT_TOKENS and become six single-sentence windows.
+
     monkeypatch.setattr(constants, "WINDOW_TOKEN_BUDGET", 1200)
     sentences = [_sentence(f"s{i + 1}", 280, float(i) * 3.0) for i in range(6)]
     result = GroqMinutesExtractor(_settings()).extract(META, sentences, SPEAKERS)
-    # The merged reply came back; six map calls plus one reduce call.
+
     assert result.title == "اجتماع طويل"
     assert len(route.calls) == 7
-    # The reduce message carries the window summaries, never the transcript.
+
     last = json.loads(route.calls[-1].request.content)
     user = last["messages"][1]["content"]
     assert "[w1]" in user and "[w6]" in user
@@ -236,7 +209,7 @@ def test_over_budget_transcript_routes_through_windows_and_reduce(monkeypatch):
 
 
 def _cite_shown_ids_reply(request) -> httpx.Response:
-    """Answer like a compliant model: cite only the real ids the prompt shows."""
+
     body = json.loads(request.content)
     system = body["messages"][0]["content"]
     user = body["messages"][1]["content"]
@@ -264,22 +237,14 @@ def _cite_shown_ids_reply(request) -> httpx.Response:
 
 @respx.mock
 def test_later_window_citation_survives_into_the_merge(monkeypatch):
-    """A compliant model cites the real ids a later window shows; they must survive.
 
-    Regression: the retired remap assumed each window renumbered from s1 and
-    mapped a later window's real ids to nothing, so every item extracted past
-    the first window was culled by the citation guard.
-    """
     _ready_models(constants.DEFAULT_LLM_MODEL)
     _post_route().mock(side_effect=_cite_shown_ids_reply)
     monkeypatch.setattr(constants, "WINDOW_TOKEN_BUDGET", 1200)
     sentences = [_sentence(f"s{i + 1}", 280, float(i) * 3.0) for i in range(6)]
     result = GroqMinutesExtractor(_settings()).extract(META, sentences, SPEAKERS)
     cited = {sid for decision in result.decisions for sid in decision.segment_ids}
-    assert "s6" in cited  # the last window's real id survived grounding and reduce
-
-
-# ---------- the reduce-overflow guard ----------
+    assert "s6" in cited
 
 
 def test_reduce_input_over_budget_fails_before_network():
@@ -290,22 +255,13 @@ def test_reduce_input_over_budget_fails_before_network():
 
 
 def test_reduce_input_near_budget_passes_without_double_counting_the_prompt():
-    """A message just under REDUCE_TOKEN_BUDGET must pass the pre-flight check.
 
-    Regression: the check once added estimate_tokens(REDUCE_SYSTEM_PROMPT) on
-    top of the message before comparing against a budget that had already
-    deducted that overhead, silently shrinking the real ceiling by ~1740
-    tokens. The message here sits inside that formerly rejected band.
-    """
     word = "كلمة "
     count = (constants.REDUCE_TOKEN_BUDGET - 100) // prompts.estimate_tokens(word)
     message = prompts.build_reduce_message([word * count])
     tokens = prompts.estimate_tokens(message)
     assert tokens > constants.REDUCE_TOKEN_BUDGET - constants.REDUCE_PROMPT_OVERHEAD_EST_TOKENS
     assert tokens <= constants.REDUCE_TOKEN_BUDGET
-
-
-# ---------- the deterministic date layer runs on the merged result ----------
 
 
 def test_reduce_result_still_passes_the_date_and_citation_layer():
@@ -327,16 +283,8 @@ def test_reduce_result_still_passes_the_date_and_citation_layer():
     assert analysis.tasks[0].due.hijri is not None
 
 
-# ---------- regression: budget splits stay under the real API bound ----------
-
-
 def test_max_window_plus_overhead_stays_under_max_prompt_tokens():
-    """A maximally packed window plus measured prompt overhead must clear MAX.
 
-    Regression for the A8 failure where window transcripts were sized against an
-    un-adorned MAX while each map call also paid for the shared system prompt,
-    header, and scope line. Deduct them here so the budgets can never diverge.
-    """
     sentences = [_sentence(f"s{i + 1}", 24, float(i) * 3.0) for i in range(500)]
     for window in split_into_windows(sentences, budget=constants.WINDOW_TOKEN_BUDGET):
         packed = _tokens_of(window)
@@ -349,16 +297,15 @@ def test_max_window_plus_overhead_stays_under_max_prompt_tokens():
 
 
 def test_realistic_long_meeting_packs_into_windows_that_pass():
-    """A 37-minute A8-style transcript splits into over-budget-sized windows."""
+
     sentences = [_sentence(f"s{i + 1}", 800, float(i) * 3.0) for i in range(130)]
     windows = split_into_windows(sentences, budget=constants.WINDOW_TOKEN_BUDGET)
-    # Each 800-word sentence estimates 3224 tokens on its own, so one lands per
-    # 5000-token window and every sentence keeps its own window.
+
     assert len(windows) == 130
     assert sum(len(w) for w in windows) == 130
     for window in windows:
         assert _tokens_of(window) <= constants.WINDOW_TOKEN_BUDGET
-    # each map call (window + system prompt + scope line) clears the real bound
+
     for window in windows:
         assert (
             _tokens_of(window) + constants.PROMPT_OVERHEAD_EST_TOKENS < constants.MAX_PROMPT_TOKENS
@@ -366,19 +313,19 @@ def test_realistic_long_meeting_packs_into_windows_that_pass():
 
 
 def test_reduce_overhead_constant_covers_the_actual_prompt():
-    """The overhead constant must never fall behind the real reduce prompt size."""
+
     actual = prompts.estimate_tokens(prompts.REDUCE_SYSTEM_PROMPT)
     assert actual <= constants.REDUCE_PROMPT_OVERHEAD_EST_TOKENS
 
 
 def test_reduce_prompt_anchors_the_lowercase_schema():
-    """The reduce model must see the JSON contract, not only uppercase markers."""
+
     for token in ("segment_ids", '"title"', '"summary"', '"description"'):
         assert token in prompts.REDUCE_SYSTEM_PROMPT
 
 
 def test_reduce_max_input_plus_overhead_stays_under_max_prompt_tokens():
-    """The largest allowed reduce input still fits beside its system prompt."""
+
     block = "TOPIC [s1]: " + " ".join(["كلمة"] * 120)
     n_ok = constants.REDUCE_TOKEN_BUDGET // prompts.estimate_tokens(block)
     summaries = [block] * n_ok

@@ -1,14 +1,3 @@
-"""Build the meeting-minutes DOCX from the canonical export document.
-
-This module holds the document sections: title, meta block, the analysis
-sections (topics, decisions, directives, the tasks table), and the optional
-transcript appendix. The paragraph and element primitives it composes live in
-docx_primitives.py; directionality comes from docx_rtl.py, layout and copy from
-strings.py. Every paragraph is RTL and right-aligned, every table is bidiVisual,
-and all body text flows through add_mixed_runs so embedded Latin terms and
-numbers keep their shape inside the RTL stream.
-"""
-
 from docx import Document
 from docx.document import Document as DocumentObject
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -27,7 +16,7 @@ __all__ = ["build", "rtl_paragraph"]
 
 
 def build(meeting: ExportMeeting, include_transcript: bool | None = None) -> DocumentObject:
-    """Render the whole document; the flag overrides the default appendix."""
+
     if include_transcript is None:
         include_transcript = constants.INCLUDE_TRANSCRIPT_IN_DOCX
     doc = Document()
@@ -41,9 +30,6 @@ def build(meeting: ExportMeeting, include_transcript: bool | None = None) -> Doc
     if include_transcript and meeting.sentences:
         _transcript(doc, meeting)
     return doc
-
-
-# ---- document sections ----
 
 
 def _title(doc: DocumentObject, meeting: ExportMeeting) -> None:
@@ -150,7 +136,7 @@ def _due_cell(cell: _Cell, task: TaskItem) -> None:
     if not (due.gregorian or due.hijri or due.raw):
         rtl_paragraph(cell, strings.resolve("export.no_due"))
         return
-    # All three lines share one style so the cell does not mix font sizes.
+
     if due.gregorian:
         rtl_paragraph(cell, due.gregorian, style_name="transcript")
     if due.hijri:

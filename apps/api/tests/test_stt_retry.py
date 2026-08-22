@@ -1,5 +1,3 @@
-"""The STT provider tags words with segment stats and honors Retry-After on 429."""
-
 from pathlib import Path
 
 import httpx
@@ -27,7 +25,7 @@ def _words_payload() -> dict:
 def test_stt_429_honors_retry_after(monkeypatch, tmp_path: Path):
     slept: list[float] = []
     monkeypatch.setattr("time.sleep", slept.append)
-    monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)  # deterministic sleep assertion
+    monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     mp3 = tmp_path / "a.mp3"
     mp3.write_bytes(b"audio")
     route = respx.post(_URL).mock(
@@ -39,7 +37,7 @@ def test_stt_429_honors_retry_after(monkeypatch, tmp_path: Path):
     words = GroqTranscriber(_settings()).transcribe(tmp_path / "a.wav", mp3)
     assert words and words[0].text == "مرحبا"
     assert len(route.calls) == 2
-    # The leaked hint (90s) is capped at the one-minute window constant.
+
     assert slept == [constants.RETRY_AFTER_MAX_S]
 
 

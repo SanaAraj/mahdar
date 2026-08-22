@@ -1,11 +1,3 @@
-"""The extraction prompt: English rules with Arabic exemplars, plus the meeting
-and its numbered transcript lines. The rules and schema contract are English so
-they ride on the default model's instruction-following strength and survive a
-model swap; Arabic survives only as embedded exemplars inside the rules and as
-the data of the user message (the meeting header and transcript). This module
-is one of the codebase's isolated Arabic locations; every other module stays
-English."""
-
 import math
 import re
 
@@ -13,8 +5,6 @@ from app import constants
 from app.shared.errors import AnalysisError
 from app.shared.models import MeetingMeta, Sentence, Speaker
 
-# The JSON shape contract. Arabic placeholders stand for the Arabic values the
-# model must return; the field names stay English per the schema.
 _SCHEMA_EXAMPLE = """{
   "title": "نص",
   "attendees": ["اسم"],
@@ -90,12 +80,12 @@ spoken. Never translate an Arabic value to English.
 
 
 def estimate_tokens(text: str) -> int:
-    """Conservative token estimate: a constant chars-per-token ratio."""
+
     return math.ceil(len(text) / constants.CHARS_PER_TOKEN)
 
 
 def ensure_within_budget(user_message: str) -> None:
-    """Fails the analysis stage if the prompt exceeds the free-tier budget."""
+
     tokens = estimate_tokens(SYSTEM_PROMPT) + estimate_tokens(user_message)
     if tokens > constants.MAX_PROMPT_TOKENS:
         raise AnalysisError(
@@ -106,7 +96,7 @@ def ensure_within_budget(user_message: str) -> None:
 def build_user_message(
     meta: MeetingMeta, sentences: list[Sentence], speakers: list[Speaker]
 ) -> str:
-    """Builds the user message: meeting header then each sentence with its id."""
+
     labels = {sp.id: sp.label for sp in speakers}
     header = [
         f"التاريخ الميلادي: {meta.date_gregorian}",
@@ -144,7 +134,7 @@ def format_duration(duration_s: float | None) -> str:
 
 
 def build_correction_message(validation_errors: str) -> str:
-    """A single correction message after a schema mismatch, capped in length."""
+
     trimmed = re.sub(r"\s+", " ", validation_errors).strip()
     trimmed = trimmed[: constants.CORRECTION_ERRORS_TAIL_CHARS]
     return (
@@ -154,13 +144,7 @@ def build_correction_message(validation_errors: str) -> str:
 
 
 def build_arabic_output_message() -> str:
-    """A short corrective line after a schema-valid but English-only reply.
 
-    Sent when the extracted values carry no Arabic at all: the model followed
-    the English rules but returned English values. It asks for Arabic values
-    only and restates the hard rule, in English so it stays an instruction and
-    not new copy to localize.
-    """
     return (
         "Your previous reply was valid JSON but its values are not Arabic. "
         "Resend the same JSON with every string value written in Arabic, "
@@ -169,21 +153,13 @@ def build_arabic_output_message() -> str:
     )
 
 
-# The one extra line a window prompt carries: the rules and schema stay
-# identical to the single-pass prompt so nothing else changes about the call.
 WINDOW_SCOPE_LINE = (
     "This transcript is one portion of a longer meeting, split across "
     "consecutive parts; this message holds one of those parts. Extract only "
     "from the sentences shown here and cite only the ids shown here."
 )
 
-# The reduce prompt: English rules that share the extraction prompt's schema
-# example, so both calls anchor on one JSON contract. Without the example the
-# reduce model mirrored the uppercase block markers of its input (TITLE, TOPIC)
-# as JSON keys, observed live on a 37.5-minute recording. It may merge obvious
-# per-window duplicates and rewrite the title and the topic summaries, but
-# never the decision, directive, or task wording, so a reduction cannot
-# fabricate a citation.
+
 REDUCE_SYSTEM_PROMPT = (
     """You are an Arabic meeting-minutes reducer. The user message holds, one
 block per portion of a longer meeting, the minutes extracted from each portion:
@@ -218,14 +194,7 @@ Your job is to merge the portions into one Arabic minutes object. Rules:
 
 
 def build_reduce_message(window_summaries: list[str]) -> str:
-    """The reduce user message: one labeled block per window summary.
 
-    Raises the shared budget message when the joined summaries still exceed
-    REDUCE_TOKEN_BUDGET, before any network call, so an over-long meeting
-    degrades to the existing Arabic guidance instead of a failed request.
-    The system prompt is not added here: REDUCE_TOKEN_BUDGET already deducted
-    its estimated size, so charging it again would shrink the real ceiling.
-    """
     blocks = [f"[w{index + 1}]\n{summary}" for index, summary in enumerate(window_summaries)]
     message = "\n\n".join(blocks)
     tokens = estimate_tokens(message)

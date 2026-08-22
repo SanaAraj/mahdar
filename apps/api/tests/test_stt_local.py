@@ -1,10 +1,3 @@
-"""The faster-whisper local transcriber against a mocked model (no downloads).
-
-Tests inject a double for faster_whisper.WhisperModel so the suite never
-loads weights or touches the network; only the adapter's mapping and its
-error paths are exercised.
-"""
-
 import sys
 import types
 from pathlib import Path
@@ -31,8 +24,6 @@ class _FakeSegment:
 
 
 class _FakeModel:
-    """Stands in for WhisperModel; returns canned word-timestamped segments."""
-
     kwargs: dict = {}
     raise_on: str | None = None
 
@@ -47,7 +38,7 @@ class _FakeModel:
             raise RuntimeError("decode failed")
         segments = [
             _FakeSegment([_FakeWord(0.0, 0.4, "مرحبا"), _FakeWord(0.4, 0.9, "بكم")]),
-            _FakeSegment([_FakeWord(1.0, 1.5, "  ")]),  # blank word: dropped
+            _FakeSegment([_FakeWord(1.0, 1.5, "  ")]),
         ]
         return segments, object()
 
@@ -59,7 +50,7 @@ def settings(tmp_path: Path) -> Settings:
 
 @pytest.fixture(autouse=True)
 def _reset_singleton(monkeypatch):
-    """Each test starts with no cached model and the fake faster_whisper in place."""
+
     monkeypatch.setattr(stt_local, "_model", None)
     _FakeModel.raise_on = None
     fake = types.SimpleNamespace(WhisperModel=_FakeModel)
@@ -76,7 +67,7 @@ def test_transcribe_returns_word_models(settings, tmp_path):
         Word(start=0.4, end=0.9, text="بكم"),
     ]
     call = _FakeModel.transcribe_call
-    assert call["path"] == str(wav)  # the wav path, not the mp3
+    assert call["path"] == str(wav)
     assert call["language"] == "ar"
     assert call["word_timestamps"] is True
     assert call["vad_filter"] is True
@@ -90,7 +81,7 @@ def test_model_is_built_for_cpu_int8_under_the_data_volume(settings, tmp_path):
     assert kwargs["model_name"] == "large-v3-turbo"
     assert kwargs["device"] == "cpu"
     assert kwargs["compute_type"] == "int8"
-    # download_root sits under the named data volume so weights persist.
+
     assert kwargs["download_root"] == str(tmp_path / "hf")
 
 

@@ -9,11 +9,7 @@ def make_words(
     step: float = 0.4,
     gaps: list[float] | None = None,
 ) -> list[Word]:
-    """Build time-ordered test words, skipping empty tokens.
 
-    gaps is the pause after each token (the default is used when a gap is not
-    supplied for that position).
-    """
     words: list[Word] = []
     cursor = start
     for index, token in enumerate(tokens):

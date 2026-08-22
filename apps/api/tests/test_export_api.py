@@ -1,5 +1,3 @@
-"""Endpoint tests for the JSON and DOCX exports (pipeline fully mocked)."""
-
 import time
 from pathlib import Path
 
@@ -25,7 +23,7 @@ WAIT_TIMEOUT_S = 15.0
 
 
 def grounded_extract(self, meta, sentences, speakers, job_id=None):
-    """A fake analysis whose wording overlaps the transcript ('كلمة')."""
+
     return Analysis(
         title="اجتماع متابعة",
         attendees=["المتحدث 1"],
@@ -53,6 +51,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("HF_TOKEN", "")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
     monkeypatch.setattr(GroqTranscriber, "transcribe", fake_transcribe)
     monkeypatch.setattr(GroqMinutesExtractor, "extract", grounded_extract)
@@ -89,7 +89,7 @@ def test_export_json_shape_and_headers(client: TestClient, wav_file: Path):
         "duration_s",
     }
     assert body["meta"]["id"] == job_id
-    # No internal state ever leaks.
+
     assert "stages" not in body and "status" not in body and "error_ar" not in body
     assert body["sentences"][0]["id"] == "s1"
     assert set(body["sentences"][0]) == {"id", "start", "end", "text", "speaker"}
@@ -105,15 +105,15 @@ def test_export_docx_media_type_and_file(client: TestClient, wav_file: Path):
     )
     assert f"mahdar-{job_id}.docx" in resp.headers["content-disposition"]
     assert resp.content[:2] == b"PK"
-    # The file renders on demand under the job's data directory.
+
     job_dir = client.app.state.settings.data_dir / job_id
     assert (job_dir / "export.docx").exists()
-    # The atomic swap leaves no partial temp file behind.
+
     assert not list(job_dir.glob("export.*.docx.tmp"))
 
 
 def test_export_docx_is_writable_concurrently(client: TestClient, wav_file: Path):
-    """Two concurrent exports of the same job never read a half-written file."""
+
     import threading
 
     job_id = _done_job(client, wav_file)
@@ -132,9 +132,9 @@ def test_export_docx_is_writable_concurrently(client: TestClient, wav_file: Path
     for t in threads:
         t.join()
     assert not errors
-    # Every response is a complete, valid docx package.
+
     assert all(b[:2] == b"PK" and b[-22:] != b"" for b in results)
-    assert len(set(results)) == 1  # identical bytes across all four reads
+    assert len(set(results)) == 1
 
 
 def test_export_endpoints_guard_unknown_and_bad_ids(client: TestClient):
@@ -151,6 +151,8 @@ def test_export_after_failed_analysis_still_serves_transcript(
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("HF_TOKEN", "")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    monkeypatch.setenv("MAX_ACTIVE_JOBS", "8")
     get_settings.cache_clear()
     monkeypatch.setattr(GroqTranscriber, "transcribe", fake_transcribe)
     monkeypatch.setattr(GroqMinutesExtractor, "extract", failing_extract)
@@ -165,10 +167,10 @@ def test_export_after_failed_analysis_still_serves_transcript(
 
 
 def test_export_of_an_unfinished_job_is_rejected(client: TestClient):
-    """Exports exist only for a finished meeting; a mid-run job answers 409."""
+
     from app import strings
 
-    client.app.state.registry.create("aaaabbbbcccc")  # a job that never ran
+    client.app.state.registry.create("aaaabbbbcccc")
     for kind in ("json", "docx"):
         resp = client.get(f"/api/meetings/aaaabbbbcccc/export/{kind}")
         assert resp.status_code == 409

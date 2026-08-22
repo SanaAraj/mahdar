@@ -1,12 +1,3 @@
-"""Reply-cleaning for the minutes extractor: reasoning blocks, code fences, and
-the JSON object inside the model's envelope.
-
-These helpers are pure functions of the model's raw content string, kept apart
-from the transport and the two-call orchestration in llm_groq.py. The think-tag
-strip and the fence extraction are lossy by design: the goal is the JSON object,
-and anything outside it is the model's own narration, never shown to the user.
-"""
-
 import json
 import re
 
@@ -23,8 +14,6 @@ from app.shared.models import (
     Topic,
 )
 
-# Every field name of the analysis schema, at every nesting level. Derived from
-# the pydantic models so a schema change can never leave this set stale.
 _SCHEMA_FIELDS: frozenset[str] = frozenset(
     name
     for model in (Analysis, Topic, Decision, Directive, TaskItem, DueDate)
@@ -34,25 +23,17 @@ _SCHEMA_FIELDS: frozenset[str] = frozenset(
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
-# Arabic detection for the output guard. The constant is a character-class body,
-# not a full pattern (see processing/docx_rtl.py for the same wrapped usage), so
-# it is compiled inside brackets; a bare compile would match a literal sequence.
+
 _ARABIC_RE = re.compile(f"[{constants.ARABIC_RTL_RANGES}]")
 
 
 def strip_reasoning(content: str) -> str:
-    """Remove reasoning-model think blocks; the direct product of _THINK_RE."""
+
     return _THINK_RE.sub("", content)
 
 
 def has_arabic_output(analysis: Analysis) -> bool:
-    """True when the title or any topic summary carries an Arabic character.
 
-    The output guard gates a reply that parsed cleanly but came back English.
-    Checking the title plus every topic summary catches the common case of a
-    model that translated its whole output; a grounded reply always names its
-    topics in Arabic because the transcript it cites is Arabic.
-    """
     surfaces = [analysis.title, *(topic.summary for topic in analysis.topics)]
     return any(_ARABIC_RE.search(surface) for surface in surfaces)
 
@@ -69,13 +50,7 @@ def content_from(resp) -> str:
 
 
 def normalize_schema_keys(value: object) -> object:
-    """Rename keys whose lowercase form is a schema field name; values never change.
 
-    A deterministic repair for a model that mirrors the uppercase markers of
-    the reduce input (TITLE, SEGMENT_IDS) as JSON keys. A key is renamed only
-    when its lowercase form is a known field and the dict does not already
-    carry that exact field, so a correctly-cased reply passes through as is.
-    """
     if isinstance(value, dict):
         renamed: dict = {}
         for key, item in value.items():
@@ -95,7 +70,7 @@ def normalize_schema_keys(value: object) -> object:
 
 
 def json_object(content: str) -> dict:
-    """Strips reasoning blocks and fences, then parses and key-repairs the object."""
+
     text = strip_reasoning(content)
     fenced = _FENCE_RE.search(text)
     if fenced:

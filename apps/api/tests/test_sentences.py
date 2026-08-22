@@ -105,7 +105,7 @@ def test_text_is_trimmed():
 
 
 def test_property_sorted_non_overlapping_all_words_consumed():
-    """Whole-property: sentences are ordered, non-overlapping, and consume every word."""
+
     tokens = [
         "افتتحنا",
         "الاجتماع.",
@@ -123,24 +123,20 @@ def test_property_sorted_non_overlapping_all_words_consumed():
     words = make_words(tokens)
     result = words_to_sentences(words)
 
-    # 1) Every word appears exactly once, in order.
     consumed = [tok for s in result for tok in s.text.split()]
     assert consumed == tokens
 
-    # 2) Sentences are time-ordered and do not overlap.
     for a, b in zip(result, result[1:], strict=False):
         assert a.end <= b.start
 
-    # 3) Each sentence carries a unique, sequential id.
     assert [s.id for s in result] == [f"s{i + 1}" for i in range(len(result))]
 
-    # 4) The first sentence start and last sentence end bracket every word.
     assert result[0].start == words[0].start
     assert result[-1].end == words[-1].end
 
 
 def test_long_run_every_word_consumed_with_hard_splits():
-    """A longer run with no punctuation: the hard split still consumes every word."""
+
     tokens = [f"و{i}" for i in range(70)]
     words = make_words(tokens)
     result = words_to_sentences(words)
@@ -150,7 +146,7 @@ def test_long_run_every_word_consumed_with_hard_splits():
 
 
 def test_turn_change_is_a_hard_sentence_boundary():
-    """Two speakers alternate faster than the pause threshold: one sentence per turn."""
+
     words = make_words(["كلمة"] * 12, step=0.2, gaps=[0.05] * 12)
     turns = [
         Turn(start=k * 0.75, end=k * 0.75 + 0.7, speaker=f"SPEAKER_0{k % 2}") for k in range(4)
@@ -167,6 +163,6 @@ def test_turn_change_is_a_hard_sentence_boundary():
 
 
 def test_without_turns_no_extra_boundary_is_added():
-    """The no-diarization path keeps exactly the old segmentation."""
+
     words = make_words(["كلمة"] * 12, step=0.2, gaps=[0.05] * 12)
     assert len(words_to_sentences(words)) == 1

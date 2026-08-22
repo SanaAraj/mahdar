@@ -1,5 +1,3 @@
-"""Transcript cleanup for whisper silence hallucinations: no_speech filter and repeat collapse."""
-
 import logging
 
 from app import constants
@@ -10,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 def filter_no_speech_words(words: list[Word]) -> list[Word]:
-    """Drop words flagged as silence by whisper; words without the flag stay."""
+
     kept: list[Word] = []
     dropped = 0
     for word in words:
@@ -24,13 +22,13 @@ def filter_no_speech_words(words: list[Word]) -> list[Word]:
 
 
 def collapse_repeated_sentences(sentences: list[Sentence]) -> list[Sentence]:
-    """Keep the first of any run of consecutive identical sentences."""
+
     kept: list[Sentence] = []
     previous: frozenset[str] | None = None
     collapsed = 0
     for sentence in sentences:
         signature = content_overlap(sentence.text)
-        # An empty signature proves nothing: two different short texts both normalize to it.
+
         if previous is not None and signature and signature == previous:
             collapsed += 1
             continue

@@ -1,10 +1,3 @@
-"""Audio conversion, probing, and long-file splitting at silence, all disk to disk.
-
-All ffmpeg/ffprobe work runs as subprocesses reading from and writing to disk,
-so no audio buffer is held in process memory here. The single in-memory case is
-the diarizer waveform, documented in providers/diarize_local.py and DECISIONS.
-"""
-
 import logging
 import re
 import subprocess
@@ -68,14 +61,7 @@ def to_mp3_mono_64k(src: Path, dst: Path) -> None:
 def split_at_silences(
     mp3: Path, dst_dir: Path, max_part_s: int = constants.SPLIT_PART_LENGTH_S
 ) -> list[tuple[Path, float, float]]:
-    """Split a long mp3 at the nearest silences, returning each part with its window.
 
-    Each returned triple is (part path, intended start, intended end). The parts
-    are contiguous: one part's intended end is the next part's intended start.
-    Callers that shift timestamps into the global timeline must advance by this
-    intended window, not by the part's re-probed encoded length, so a part that
-    encodes short or long cannot skew every later timestamp.
-    """
     dst_dir.mkdir(parents=True, exist_ok=True)
     silences = detect_silences(mp3)
     duration = probe_duration(mp3)

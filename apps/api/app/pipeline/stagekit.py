@@ -1,11 +1,3 @@
-"""The ordered pipeline stages, their labels, and how each one fails.
-
-STAGE_ORDER is the single source of truth for both the registry and the
-runner; STAGE_DEFS holds the per-stage wire status, Arabic label key, the
-message key used when a stage raises an unexpected exception, and whether a
-DIARIZE-stage failure degrades to SKIPPED instead of failing the job.
-"""
-
 import logging
 from dataclasses import dataclass
 
@@ -13,13 +5,6 @@ from app.shared.models import JobStatus
 
 
 class JobLogger(logging.LoggerAdapter):
-    """Log lines prefixed with the job id, at the caller's severity.
-
-    Non-job lines (provider retries, startup reload) stay on the plain module
-    logger; anything about one job goes through this adapter so the pipeline
-    log is traceable per job with no message-format drift.
-    """
-
     def process(self, msg: str, kwargs) -> tuple[str, dict]:
         return f"job {self.extra['job_id']} {msg}", kwargs
 
@@ -52,5 +37,5 @@ STAGE_DEFS: dict[str, StageDef] = {
 }
 STAGE_INDEX: dict[str, int] = {key: i for i, key in enumerate(STAGE_ORDER)}
 
-# Stages that run as a parallel pair after conversion.
+
 PARALLEL_STAGES: tuple[str, ...] = ("transcribe", "diarize")

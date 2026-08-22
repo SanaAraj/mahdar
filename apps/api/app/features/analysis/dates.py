@@ -1,13 +1,3 @@
-"""Deterministic normalization of relative and explicit Arabic dates, off-model.
-
-The context is Saudi: the work week runs Sunday to Thursday. "End of week" is
-the coming Friday and "end of work week" the coming Thursday (documented in
-DECISIONS.md). Any phrase no parser here matches returns None rather than guess.
-
-The Arabic phrase tables below are product vocabulary for an Arabic product,
-not code copy; they stay Arabic by design (see DECISIONS.md).
-"""
-
 import re
 from datetime import date, timedelta
 
@@ -75,7 +65,7 @@ _RANGES = {
 _HIJRI_MONTH_RE = "محرم|صفر|شعبان|رجب|رمضان|شوال|ذو القعدة|ذي القعدة|ذو الحجة|ذي الحجة"
 _HIJRI_PREFIX_RE = "ربيع|جمادى"
 
-# Julian month lengths; February's leap-day entry is chosen per year at lookup.
+
 _MONTH_LENGTHS = (31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 _FEBRUARY = 2
 
@@ -88,7 +78,7 @@ def normalize(raw: str | None, anchor: date) -> date | None:
 
 
 def gregorian_from_hijri(hijri_iso: str) -> str | None:
-    """Convert an ISO Hijri date (from the model) to ISO Gregorian; None when it fails."""
+
     match = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", (hijri_iso or "").strip())
     if not match:
         return None
@@ -133,7 +123,7 @@ def _parse_hijri(text: str) -> date | None:
     if month is None or not 1 <= day <= 30:
         return None
     if year is None:
-        return None  # No explicit Hijri year: a real ambiguity between two cycles, so no guess.
+        return None
     try:
         return Hijri(year, month, day).to_gregorian()
     except (OverflowError, ValueError):
@@ -166,9 +156,9 @@ def _relative(text: str, anchor: date) -> date | None:
     if text == "الأسبوع القادم":
         return anchor + timedelta(days=7)
     if text == "نهاية الأسبوع":
-        return _coming_weekday(anchor, 4)  # coming Friday
+        return _coming_weekday(anchor, 4)
     if text == "نهاية أسبوع العمل":
-        return _coming_weekday(anchor, 3)  # coming Thursday
+        return _coming_weekday(anchor, 3)
     if text == "نهاية الشهر":
         return _month_end(anchor, 0)
     if text in ("نهاية الشهر القادم", "نهاية الشهر المقبل", "نهاية الشهر الجاي"):
@@ -193,12 +183,7 @@ def _coming_weekday(anchor: date, weekday: int) -> date:
 
 
 def _next_weekday(anchor: date, weekday: int) -> date:
-    """A day marked "coming" always falls in the next week, without exception.
 
-    One rule with no special cases: whoever meant a later day of the current
-    week named it plainly, and whoever said "coming" meant the next weekly
-    cycle however near or far.
-    """
     return anchor + timedelta(days=(weekday - anchor.weekday()) % 7 + 7)
 
 

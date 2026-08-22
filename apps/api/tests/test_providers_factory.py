@@ -1,5 +1,3 @@
-"""The provider factory: selection, unknown-value stubs, and boot validation."""
-
 import logging
 
 import pytest
@@ -19,9 +17,6 @@ def _settings(**overrides) -> Settings:
     return Settings(**base)
 
 
-# ---------- selection ----------
-
-
 def test_defaults_select_groq():
     transcriber = factory.build_transcriber(_settings())
     extractor = factory.build_extractor(_settings())
@@ -34,15 +29,12 @@ def test_local_selects_local_providers():
     assert isinstance(factory.build_transcriber(s), LocalTranscriber)
     extractor = factory.build_extractor(s)
     assert isinstance(extractor, LocalMinutesExtractor)
-    assert isinstance(extractor, GroqMinutesExtractor)  # inherits the shared guards
+    assert isinstance(extractor, GroqMinutesExtractor)
 
 
 def test_selection_is_case_insensitive_and_trimmed():
     s = _settings(stt_provider="  LOCAL ")
     assert isinstance(factory.build_transcriber(s), LocalTranscriber)
-
-
-# ---------- unknown values fail the stage, not app boot ----------
 
 
 def test_unknown_stt_provider_raises_in_the_stage():

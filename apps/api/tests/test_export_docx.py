@@ -1,5 +1,3 @@
-"""DOCX structure tests run by unzipping document.xml: no Word needed."""
-
 import io
 import zipfile
 
@@ -37,12 +35,12 @@ FIXTURE_ANALYSIS = Analysis(
     topics=[
         Topic(title="الخطة", summary="استعرضنا خطة العمل المرحلية.", segment_ids=["s1"]),
     ],
-    decisions=[],  # the empty list must render its designed line
+    decisions=[],
     directives=[],
     tasks=[
         TaskItem(
             description="رفع التقرير النهائي",
-            owner=None,  # the null owner must use the quiet fallback
+            owner=None,
             due=DueDate(raw="غدًا", gregorian="2026-08-19", hijri="1448-03-06"),
             priority=None,
             segment_ids=["s1"],
@@ -126,7 +124,7 @@ def test_mixed_sentence_run_order_is_preserved():
             continue
         ordered = "".join(t.text or "" for t in p.iter(f"{{{W}}}t"))
         assert "KPI" in ordered and "95" in ordered
-        # The Arabic frame surrounds the Latin term and digits, in source order.
+
         assert ordered.index("اعتمدنا") < ordered.index("KPI")
         assert ordered.index("KPI") < ordered.index("95")
         assert ordered.index("95") < ordered.index("اليوم")
@@ -167,9 +165,9 @@ def test_no_analysis_keeps_meta_and_transcript_with_one_note():
     root = _document_root(_meeting(analysis=None))
     all_text = "".join(t.text or "" for t in root.iter(f"{{{W}}}t"))
     assert strings.resolve("export.no_analysis") in all_text
-    assert "2026-08-18" in all_text  # meta still exported
-    assert "اعتمدنا" in all_text  # transcript appendix still rendered
-    # And none of the analysis section headings appear.
+    assert "2026-08-18" in all_text
+    assert "اعتمدنا" in all_text
+
     assert strings.resolve("export.topics") not in all_text
     assert strings.resolve("export.decisions") not in all_text
 
@@ -179,7 +177,7 @@ def test_transcript_appendix_flag_drops_the_section():
     all_text = "".join(t.text or "" for t in root.iter(f"{{{W}}}t"))
     assert strings.resolve("export.transcript") not in all_text
     assert "اعتمدنا" not in all_text
-    # The analysis sections are still present without the appendix.
+
     assert strings.resolve("export.topics") in all_text
 
 
@@ -193,7 +191,7 @@ def test_bytes_are_a_valid_docx_package():
 
 
 def test_rpr_children_are_in_schema_order():
-    """w:szCs precedes w:rtl in every run, per ECMA-376 CT_RPr."""
+
     root = _document_root()
     for rpr in root.iter(f"{{{W}}}rPr"):
         children = [c.tag.split("}")[-1] for c in rpr]
@@ -202,7 +200,7 @@ def test_rpr_children_are_in_schema_order():
 
 
 def test_ppr_children_are_in_schema_order():
-    """w:bidi precedes w:jc in every paragraph, per ECMA-376 CT_PPr."""
+
     root = _document_root()
     for ppr in root.iter(f"{{{W}}}pPr"):
         children = [c.tag.split("}")[-1] for c in ppr]
