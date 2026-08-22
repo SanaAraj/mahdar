@@ -277,12 +277,10 @@ single root lockfile, one test runner (`turbo run test`), and one tree-wide
 `docker compose up` via the Caddy proxy. The Python tree moved from
 `backend/app/{core,api,providers,processing}` to a feature-first
 `apps/api/app/{features/{meetings,transcription,diarization,analysis,export},shared,pipeline,api}`.
-The uv lock pins the existing torch 2.11.0 CPU / torchaudio 2.11.0 /
-torchcodec 0.11.1 combo exactly as it was live before the move (the
-`requirements.txt` baseline of 114 names); any small drift in
-huggingface-hub/idna/lxml/narwhals/protobuf versions reflects uv's resolver
-and is documented in the report. onnxruntime stays a linux-only override
-because faster-whisper imports it lazily and macOS 12 lacks the wheel.
+The uv lock pins torch 2.11.0, torchaudio 2.11.0, and torchcodec 0.13.0.
+Linux resolves all three from the official CPU wheel index. onnxruntime stays
+a Linux-only override because faster-whisper imports it lazily and macOS 12
+lacks the wheel.
 
 ## 2026-08-22: Phase B hardening
 
