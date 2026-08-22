@@ -10,28 +10,22 @@ export function StatsStrip({ job }: Readonly<StatsStripProps>) {
   const analysis = job.analysis;
   if (!analysis) return null;
   const tiles: Array<{ label: string; value: string }> = [
-    { label: strings.topicsHeading, value: String(analysis.topics.length) },
-    { label: strings.decisionLabel, value: String(analysis.decisions.length) },
-    { label: strings.followupTasks, value: String(analysis.tasks.length) },
+    { label: strings.durationLabel, value: job.duration_s != null ? formatDuration(job.duration_s) : "—" },
+    { label: strings.attendeesLabel, value: job.speakers.length ? speakerCount(job.speakers.length) : "—" },
     { label: strings.transcriptHeading, value: sentencesCount(job.sentences.length) },
+    { label: strings.followupTasks, value: String(analysis.tasks.length) },
   ];
-  if (job.speakers.length) {
-    tiles.push({ label: strings.attendeesLabel, value: speakerCount(job.speakers.length) });
-  }
-  if (job.duration_s != null) {
-    tiles.push({ label: strings.durationLabel, value: formatDuration(job.duration_s) });
-  }
   return (
-    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+    <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-[12px] border border-[var(--color-line)] bg-[var(--color-surface)] sm:grid-cols-4">
       {tiles.map((tile) => (
         <div
           key={tile.label}
-          className="flex flex-col items-center justify-center gap-1 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-4 text-center shadow-[var(--shadow-card)]"
+          className="flex min-h-[82px] flex-col items-start justify-center gap-0.5 border-b border-l border-[var(--color-line-soft)] px-4 py-3 text-start last:border-l-0 sm:border-b-0"
         >
-          <span className="text-2xl font-bold tabular-nums text-[var(--color-accent)]">
+          <span className="text-lg font-bold tabular-nums text-[var(--color-ink)]">
             {tile.value}
           </span>
-          <span className="text-xs text-[var(--color-ink-soft)]">{tile.label}</span>
+          <span className="text-xs font-medium text-[var(--color-ink-soft)]">{tile.label}</span>
         </div>
       ))}
     </div>

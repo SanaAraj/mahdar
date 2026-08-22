@@ -20,7 +20,6 @@ import {
 import { useBeforeUnload } from "@/features/meeting/hooks/use-before-unload";
 
 const IDLE_LABELS: RecordIdleLabels = {
-  title: strings.appName,
   subtitle: strings.appSubtitle,
   recordHint: strings.recordHint,
   recordAriaLabel: strings.startRecording,
@@ -31,7 +30,7 @@ const IDLE_LABELS: RecordIdleLabels = {
 
 const RECORD_LABELS: RecordingPanelLabels = {
   title: strings.recordingTitle,
-  stop: strings.pause,
+  stop: strings.stop,
   savingHint: strings.savingHint,
 };
 
@@ -61,8 +60,8 @@ function HomePage() {
   }
 
   return (
-    <main className="min-h-screen py-6">
-      <div className="mx-auto max-w-[720px] px-4">
+    <main className="min-h-screen py-3 sm:py-5">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
         {pageError ? (
           <Alert variant="danger" className="mb-4">
             <AlertDescription>{pageError}</AlertDescription>

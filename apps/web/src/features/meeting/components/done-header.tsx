@@ -24,7 +24,7 @@ export function DoneHeader({ job, onReanalyze, reanalyzePending }: Readonly<Done
     <>
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={() => void navigate({ to: "/" })}
       >
@@ -35,7 +35,7 @@ export function DoneHeader({ job, onReanalyze, reanalyzePending }: Readonly<Done
           JSON
         </a>
       </Button>
-      <Button asChild variant="secondary" size="sm">
+      <Button asChild variant="primary" size="sm">
         <a href={getExportDocxUrl(job.id)} download>
           <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
             <use href={iconHref("download")} />
@@ -63,15 +63,13 @@ export function DoneHeader({ job, onReanalyze, reanalyzePending }: Readonly<Done
         onNewMeeting={() => void navigate({ to: "/" })}
         actions={actions}
       />
-      <div className="mb-6 text-center">
-        <div className="mb-2 flex items-center justify-center gap-2">
-          <Badge variant="success">{strings.ready}</Badge>
-          <span className="text-sm text-[var(--color-ink-soft)]">
-            {sentencesCount(job.sentences.length)}
-          </span>
+      <div className="mb-5 border-b border-[var(--color-line)] py-3 pb-6">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Badge>{strings.ready}</Badge>
+          <span className="text-sm text-[var(--color-ink-soft)]">{sentencesCount(job.sentences.length)}</span>
         </div>
-        <h2 className="mb-1 text-2xl font-bold">{title}</h2>
-        {meta ? <p className="text-sm text-[var(--color-ink-soft)]">{meta}</p> : null}
+        <h2 className="m-0 max-w-[850px] text-[clamp(28px,4vw,38px)] font-bold leading-[1.3] tracking-[-0.02em]">{title}</h2>
+        {meta ? <p className="mt-2 mb-0 text-sm text-[var(--color-ink-soft)]">{meta}</p> : null}
       </div>
     </>
   );

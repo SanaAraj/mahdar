@@ -29,7 +29,7 @@ const STATE_BADGE_VARIANT: Record<
 export function StagesList({ stages }: Readonly<StagesListProps>) {
   if (!stages.length) return null;
   return (
-    <ol className="mx-auto w-full max-w-[420px] space-y-1">
+    <ol className="mx-auto w-full max-w-[560px] space-y-2">
       {stages.map((stage) => (
         <StageRow key={stage.key} stage={stage} />
       ))}
@@ -42,16 +42,16 @@ function StageRow({ stage }: Readonly<{ stage: Stage }>) {
     <li
       data-state={stage.state}
       className={cn(
-        "flex items-center gap-3 py-1.5 text-sm text-[var(--color-ink-soft)]",
-        stage.state === "running" && "font-medium text-[var(--color-ink)]",
-        stage.state === "done" && "text-[var(--color-accent)]",
-        stage.state === "error" && "text-[var(--color-danger)]",
+        "flex min-h-14 items-center gap-3 rounded-[14px] border border-transparent px-3 py-2.5 text-sm text-[var(--color-ink-soft)] transition-colors",
+        stage.state === "running" && "border-[var(--color-accent-ring)] bg-[var(--color-accent-soft)] font-medium text-[var(--color-ink)]",
+        stage.state === "done" && "bg-[var(--color-bg)] text-[var(--color-accent)]",
+        stage.state === "error" && "border-[var(--color-danger)] bg-[var(--color-danger-soft)] text-[var(--color-danger)]",
       )}
     >
       <StageIcon state={stage.state} />
       <span className="flex-1">{stage.label_ar}</span>
       {stage.key === "diarize" && stage.state === "running" ? (
-        <span className="text-xs font-normal text-[var(--color-ink-soft)]">
+        <span className="hidden max-w-[210px] text-xs font-normal text-[var(--color-ink-soft)] sm:block">
           {strings.diarizeRunningNote}
         </span>
       ) : null}

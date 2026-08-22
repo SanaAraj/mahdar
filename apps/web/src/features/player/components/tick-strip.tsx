@@ -14,12 +14,15 @@ export interface TickStripProps {
 }
 
 export function TickStrip({ sentences, currentTime, duration, onSeekSentence }: TickStripProps) {
+  if (duration <= 0) {
+    return <div className="mt-3 h-2 animate-pulse rounded-full bg-[var(--color-line-soft)]" />;
+  }
   const safeDuration = duration > 0 ? duration : 1;
 
   return (
     <TooltipProvider delayDuration={150}>
       <div
-        className="flex h-10 min-w-0 flex-1 items-center gap-[2px]"
+        className="mt-3 flex h-3 min-w-0 flex-1 items-end gap-[2px]"
         role="group"
         aria-label="sentence ticks"
         dir="ltr"
@@ -35,12 +38,12 @@ export function TickStrip({ sentences, currentTime, duration, onSeekSentence }: 
                   type="button"
                   aria-label={`${formatClock(sentence.start)} · ${sentence.text.slice(0, 40)}`}
                   onClick={() => onSeekSentence(sentence.id)}
-                  className="flex h-full min-w-[2px] items-end border-0 bg-transparent p-0"
+                  className="flex h-full min-w-[2px] cursor-pointer items-end border-0 bg-transparent p-0"
                   style={{ flexGrow: widthPct, flexBasis: 0 }}
                 >
                   <span
                     className={cn(
-                      "block h-[30px] w-full rounded-[2px] transition-colors duration-150",
+                      "block h-full w-full rounded-full transition-[background,opacity] duration-150",
                       isPast ? "" : "opacity-40",
                     )}
                     style={{ background: color }}

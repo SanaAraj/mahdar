@@ -11,24 +11,20 @@ interface ErrorViewProps {
 export function ErrorView({ message }: Readonly<ErrorViewProps>) {
   const navigate = useNavigate();
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
-      <div className="w-full max-w-[480px] rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-card)]">
-        <h2 className="mb-4 text-xl font-bold">{strings.failedTitle}</h2>
-        <Alert variant="danger" className="mb-6 text-right">
-          <AlertTitle>{strings.failedTitle}</AlertTitle>
+    <div className="flex min-h-screen flex-col items-center justify-center p-5">
+      <div className="w-full max-w-[540px] overflow-hidden rounded-[26px] border border-[var(--color-line)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
+        <div className="px-7 pt-8 text-center sm:px-10">
+          <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-danger-soft)] text-[var(--color-danger)]">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7"><use href="#icon-alert-circle" /></svg>
+          </span>
+          <h2 className="m-0 text-2xl font-bold">{strings.failedTitle}</h2>
+        </div>
+        <div className="px-7 py-7 sm:px-10">
+          <Alert variant="danger" className="mb-6 text-right">
+          <AlertTitle>سبب المشكلة</AlertTitle>
           <AlertDescription>{message || strings.pollFailedGeneric}</AlertDescription>
-        </Alert>
-        <div className="flex justify-center gap-2">
-          <Button type="button" onClick={() => void navigate({ to: "/" })}>
-            {strings.retry}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void navigate({ to: "/" })}
-          >
-            {strings.newMeeting}
-          </Button>
+          </Alert>
+          <Button type="button" className="w-full" onClick={() => void navigate({ to: "/" })}>{strings.newMeeting}</Button>
         </div>
       </div>
     </div>
