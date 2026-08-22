@@ -85,14 +85,29 @@ request does not remove a completed transcript.
 
 ## Providers
 
-The submitted and manually tested path uses Groq for transcription and minutes
-extraction:
+The default path uses Groq for transcription and minutes extraction. Cohere is an
+optional Arabic transcription provider for comparing transcript quality:
 
-| Stage | Default | Local alternative |
+| Stage | Default | Alternatives |
 | --- | --- | --- |
-| Transcription | Groq `whisper-large-v3` | faster-whisper `large-v3-turbo` |
+| Transcription | Groq `whisper-large-v3` | Cohere `cohere-transcribe-arabic-07-2026`; local faster-whisper `large-v3-turbo` |
 | Speaker separation | pyannote `community-1` on CPU | Same |
 | Minutes extraction | Groq `openai/gpt-oss-120b` | Configurable Ollama model; default `qwen3:8b` |
+
+To compare Cohere transcription while keeping minutes extraction on Groq, add a
+Cohere trial key and change only the STT provider:
+
+```dotenv
+STT_PROVIDER=cohere
+LLM_PROVIDER=groq
+COHERE_API_KEY=
+COHERE_STT_MODEL=cohere-transcribe-arabic-07-2026
+```
+
+The Cohere API path was tested with Arabic audio. Because the model returns text
+without timestamps or speaker diarization, Mahdar estimates word positions across
+the recording to preserve the existing transcript pipeline. Groq remains the
+recommended path when accurate seeking and speaker alignment matter.
 
 > **Local provider status:** The faster-whisper and Ollama integrations are
 > implemented and covered by mocked unit tests, but the complete local path has not
@@ -128,6 +143,7 @@ building blocks.
 | Ready-made component | What was used | What was built for Mahdar |
 | --- | --- | --- |
 | Groq, Whisper large-v3, and `gpt-oss-120b` | Hosted transcription and language-model inference | Provider clients, audio chunking, retries, prompts, schema validation, and Arabic error handling |
+| Cohere Transcribe Arabic | Hosted Arabic transcription model and API | Optional provider adapter, retries, audio chunking, error handling, and approximate timing integration |
 | pyannote `community-1` | Speaker diarization model and runtime | Audio loading, parallel execution, turn-to-sentence assignment, speaker ordering, renaming, and re-analysis |
 | faster-whisper, Ollama, and Qwen | Local inference engines and published models | An optional provider path following the same pipeline contract; mocked in tests but not run with real local inference |
 | FastAPI, Pydantic, Uvicorn, HTTPX, and SlowAPI | API, validation, HTTP, and rate-limit primitives | Meeting endpoints, upload checks, job lifecycle, persisted state, recovery, and exports |
@@ -147,8 +163,10 @@ file.
 ## Data and privacy
 
 With the default providers, audio is sent to Groq for transcription and transcript
-context is sent to Groq for minutes extraction. Diarization runs locally inside the
-API container. Meeting artifacts are stored in the `mahdar-data` Docker volume.
+context is sent to Groq for minutes extraction. When `STT_PROVIDER=cohere`, audio is
+sent to Cohere instead, while transcript context still goes to the configured LLM
+provider. Diarization runs locally inside the API container. Meeting artifacts are
+stored in the `mahdar-data` Docker volume.
 
 API keys belong only in `.env`. The repository includes a documented `.env.example`
 with empty secret values.
@@ -164,13 +182,14 @@ bun run test
 
 The automated tests mock provider calls and cover the API, audio splitting,
 sentence assembly, speaker assignment, citations, dates, long-transcript analysis,
-exports, recovery, and the main web utilities. The Groq Docker path was also tested
-manually with real recordings. The local-provider tests use fakes and mocked HTTP
-responses; they do not prove real faster-whisper or Ollama inference.
+exports, recovery, and the main web utilities. The Groq Docker path and Cohere API
+path were tested manually with Arabic recordings. The local-provider tests use
+fakes and mocked HTTP responses; they do not prove real faster-whisper or Ollama
+inference.
 
-Two short Arabic clips and reference transcripts are available in `samples/` for
-manual transcription checks. A real multi-speaker recording is still the best final
-check for diarization and speaker turn boundaries.
+Four Arabic recordings are available in `samples/`, including a professional Saudi
+multi-speaker discussion and a formal Arabic sample. Their sources and known
+license details are documented in `samples/README.md`.
 
 ## Project structure
 
@@ -179,7 +198,7 @@ apps/api/    FastAPI service and the processing pipeline
 apps/web/    React application and feature-based UI
 infra/       Caddy configuration
 docs/        Technical decision record
-samples/     Arabic audio samples and reference transcripts
+samples/     Arabic audio samples and provenance
 ```
 
 The API and web packages are organized by feature. The main technical trade-offs
@@ -194,6 +213,9 @@ and rejected alternatives are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.m
 - The local faster-whisper and Ollama path is implemented but has not been manually
   validated end to end. It should be tested for model download, resource use,
   processing time, and output quality before being relied on.
+- Cohere Transcribe Arabic does not return timestamps or speaker diarization.
+  Mahdar's estimated word positions make it suitable for transcript comparison,
+  but less precise for seeking and speaker assignment than timestamped Whisper output.
 - Very long meetings require more model calls and may be affected by provider rate
   limits. The transcript remains available if minutes extraction fails.
 - The current single-worker, file-backed design is suitable for this assignment and

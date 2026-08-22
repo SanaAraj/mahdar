@@ -6,6 +6,7 @@ from app import factory
 from app.config import Settings
 from app.features.analysis.llm_groq import GroqMinutesExtractor
 from app.features.analysis.llm_local import LocalMinutesExtractor
+from app.features.transcription.stt_cohere import CohereTranscriber
 from app.features.transcription.stt_groq import GroqTranscriber
 from app.features.transcription.stt_local import LocalTranscriber
 from app.shared.errors import AnalysisError, TranscriptionError
@@ -30,6 +31,12 @@ def test_local_selects_local_providers():
     extractor = factory.build_extractor(s)
     assert isinstance(extractor, LocalMinutesExtractor)
     assert isinstance(extractor, GroqMinutesExtractor)
+
+
+def test_cohere_selects_cohere_stt_and_keeps_groq_llm():
+    settings = _settings(stt_provider="cohere", cohere_api_key="key")
+    assert isinstance(factory.build_transcriber(settings), CohereTranscriber)
+    assert isinstance(factory.build_extractor(settings), GroqMinutesExtractor)
 
 
 def test_selection_is_case_insensitive_and_trimmed():
@@ -60,4 +67,5 @@ def test_validate_providers_logs_unknown_values(caplog):
 def test_validate_providers_is_quiet_for_valid(caplog):
     with caplog.at_level(logging.ERROR, logger="app.factory"):
         factory._validate_providers(_settings())
+        factory._validate_providers(_settings(stt_provider="cohere"))
     assert caplog.text == ""

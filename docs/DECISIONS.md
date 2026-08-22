@@ -29,18 +29,21 @@ below records the context, the chosen approach, and the remaining trade-off.
 setup an evaluator can run without a GPU. It should also have a path that does not
 depend on a hosted inference provider.
 
-**Decision.** Groq is the default and validated provider for both STT and minutes
-extraction, using `whisper-large-v3` and `openai/gpt-oss-120b`. The same interfaces
+**Decision.** Groq is the default provider for both STT and minutes extraction,
+using `whisper-large-v3` and `openai/gpt-oss-120b`. Cohere Transcribe Arabic is an
+optional STT provider for comparing Arabic transcript quality while the LLM remains
+on Groq. Its API path was validated with Arabic recordings. Because Cohere
+returns text without timestamps, Mahdar distributes words deterministically across
+each audio chunk to satisfy the existing pipeline contract. The same interfaces
 also support faster-whisper `large-v3-turbo` on CPU and a configurable
 Ollama-hosted model, defaulting to `qwen3:8b`. That local path is implemented and
-covered by mocked tests, but it has not been run end to end with real local models
-and is not part of the validated submission flow. The application checks the
-configured cloud LLM before analysis and returns a clear Arabic error if it is
-unavailable.
+covered by mocked tests, but it has not been run end to end with real local models.
 
-**Trade-off.** The validated cloud path avoids local model setup, but it sends audio
-and transcript context to an external service. The local path is intended to keep
-inference local after model download, but its real startup behavior, CPU
+**Trade-off.** Hosted providers avoid local model setup, but send audio and
+transcript context to external services. Cohere is optimized for Arabic dialects
+and code-switching, but its estimated word timings reduce seeking and speaker
+alignment precision, so Groq remains the default. The local path is intended to
+keep inference local after model download, but its real startup behavior, CPU
 performance, storage use, and output quality have not yet been verified. None of
 these models was trained or fine-tuned here.
 
