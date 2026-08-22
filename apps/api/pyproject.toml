@@ -2,6 +2,34 @@
 name = "mahdar-api"
 version = "0.1.0"
 requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.141.1",
+    "faster-whisper==1.2.1",
+    "hijridate==2.3.0",
+    "httpx==0.28.1",
+    "pyannote-audio==4.0.7",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "python-docx==1.2.0",
+    "python-multipart==0.0.32",
+    "pyyaml==6.0.3",
+    "slowapi==0.1.10",
+    "torch==2.11.0",
+    "torchcodec==0.11.1",
+    "uvicorn==0.52.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "respx==0.23.1",
+    "ruff==0.16.3",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100
@@ -9,6 +37,14 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.uv]
+override-dependencies = [
+    # faster-whisper imports onnxruntime lazily for local STT; on macOS 12 it has no
+    # compatible wheel (pip's old install skipped it the same way). The app's runtime
+    # provider default is Groq, so marker it out of the mac dev venv only.
+    "onnxruntime==1.29.0 ; sys_platform == 'linux'",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

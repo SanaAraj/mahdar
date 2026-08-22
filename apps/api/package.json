@@ -1,0 +1,12 @@
+{
+  "name": "@mahdar/api",
+  "private": true,
+  "scripts": {
+    "dev": "uv run uvicorn app.main:app --reload --port 8100",
+    "build": "uv sync --frozen",
+    "lint": "uv run ruff check .",
+    "format": "uv run ruff format .",
+    "test": "uv run pytest",
+    "typecheck": "uv run python -m compileall -q app tests"
+  }
+}
