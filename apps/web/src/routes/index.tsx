@@ -77,7 +77,6 @@ function HomePage() {
     </main>
   );
 }
-
 interface HomeBodyProps {
   recorder: ReturnType<typeof useRecorder>;
   onUpload: (file: File) => void;
@@ -134,4 +133,3 @@ function HomeBody({ recorder, onUpload, onUploadError }: HomeBodyProps) {
     />
   );
 }
-

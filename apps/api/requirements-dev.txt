@@ -1,6 +1,0 @@
-# Development tools only: lint, format, and the test stack. The Docker image
-# installs requirements.txt alone, so none of these enter the runtime image.
--r requirements.txt
-pytest==9.1.1
-respx==0.23.1
-ruff==0.16.3
