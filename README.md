@@ -184,10 +184,11 @@ bun run test
 
 The automated tests mock provider calls and cover the API, audio splitting,
 sentence assembly, speaker assignment, citations, dates, long-transcript analysis,
-exports, recovery, and the main web utilities. The Groq Docker path and Cohere API
-path were tested manually with Arabic recordings. The local-provider tests use
-fakes and mocked HTTP responses; they do not prove real faster-whisper or Ollama
-inference.
+exports, recovery, upload failures, recording timing, and the main web utilities.
+GitHub Actions runs Ruff, mypy, ESLint, TypeScript, both test suites, the production
+web build, and Docker Compose validation. The Groq Docker path and Cohere API path
+were tested manually with Arabic recordings. The local-provider tests use fakes and
+mocked HTTP responses; they do not prove real faster-whisper or Ollama inference.
 
 Four Arabic recordings are available in `samples/`, including a professional Saudi
 multi-speaker discussion and a formal Arabic sample. Their sources and known
