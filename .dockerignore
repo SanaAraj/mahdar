@@ -11,5 +11,16 @@ __pycache__/
 .ruff_cache/
 docs/
 samples/
-tests/
 .dockerignore
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.turbo/
+**/node_modules/
+.venv/
+apps/api/.venv/
+apps/api/tests/
+apps/web/.output/
+apps/web/.nitro/
+apps/web/.tanstack/
+apps/web/src/routeTree.gen.ts

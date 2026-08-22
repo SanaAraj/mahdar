@@ -1,14 +1,29 @@
 services:
-  app:
-    build: .
+  proxy:
+    image: caddy:2-alpine
     ports:
       - "8100:8100"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
+  api:
+    build: ./apps/api
     env_file: .env
     environment:
       # Keep the Hugging Face model cache on the volume so it survives restarts.
       HF_HOME: /data/hf
     volumes:
       - mahdar-data:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     restart: unless-stopped
 
   # Offline fallback: a local Ollama server under the "local" profile. Start it
