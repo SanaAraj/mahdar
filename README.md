@@ -13,8 +13,10 @@
   </p>
 </div>
 
+https://github.com/user-attachments/assets/d0b4e19a-3029-46fd-934d-d73b9b46baef
+
 <p align="center">
-  <img src="docs/assets/mahdar-workspace.jpg" alt="Mahdar Arabic meeting workspace" width="100%">
+  <sub>Upload, processing, playback, transcript, and structured Arabic minutes.</sub>
 </p>
 
 ## Run with Docker
