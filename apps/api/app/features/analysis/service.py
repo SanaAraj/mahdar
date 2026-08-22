@@ -66,7 +66,5 @@ def apply_meeting_task_dates(analysis: Analysis, anchor) -> None:
             due.gregorian = None
             due.hijri = None
             continue
-        if due.gregorian:
-            due.hijri = gregorian_hijri(due.gregorian)
-        elif due.hijri:
-            due.gregorian = dates.gregorian_from_hijri(due.hijri)
+        due.gregorian = None
+        due.hijri = None

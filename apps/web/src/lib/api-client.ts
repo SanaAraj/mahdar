@@ -4,16 +4,24 @@ import {
   type MeetingJob,
   type Speaker,
 } from "./schemas";
-import { z } from "zod";
+import * as z from "zod";
 
-export interface ApiError {
-  status: number;
-  code: string;
-  message_ar: string;
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly message_ar: string;
+
+  constructor(status: number, code: string, messageAr: string) {
+    super(messageAr || code);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.message_ar = messageAr;
+  }
 }
 
 function isApiError(e: unknown): e is ApiError {
-  return typeof e === "object" && e !== null && "message_ar" in e;
+  return e instanceof ApiError;
 }
 
 export { isApiError };
@@ -41,7 +49,7 @@ async function parseErrorBody(resp: Response): Promise<{ code: string; message_a
 async function requestJson<T>(resp: Response, schema: z.ZodType<T>): Promise<T> {
   if (!resp.ok) {
     const { code, message_ar } = await parseErrorBody(resp);
-    throw { status: resp.status, code, message_ar } satisfies ApiError;
+    throw new ApiError(resp.status, code, message_ar);
   }
   const data: unknown = await resp.json();
   return schema.parse(data);
@@ -88,7 +96,7 @@ export function uploadMeetingFile(
 
     if (signal) {
       if (signal.aborted) {
-        reject({ status: 0, code: "upload.aborted", message_ar: "" } satisfies ApiError);
+        reject(new ApiError(0, "upload.aborted", ""));
         return;
       }
       signal.addEventListener("abort", onAbort, { once: true });
@@ -111,8 +119,10 @@ export function uploadMeetingFile(
             return;
           }
         } catch {
+          reject(new ApiError(xhr.status, "parse.error", ""));
+          return;
         }
-        reject({ status: xhr.status, code: "parse.error", message_ar: "" } satisfies ApiError);
+        reject(new ApiError(xhr.status, "parse.error", ""));
         return;
       }
       let message_ar = xhr.statusText;
@@ -123,18 +133,19 @@ export function uploadMeetingFile(
         else if (typeof body.detail === "string") message_ar = body.detail;
         if (typeof body.code === "string") code = body.code;
       } catch {
+        message_ar = xhr.statusText;
       }
-      reject({ status: xhr.status, code, message_ar } satisfies ApiError);
+      reject(new ApiError(xhr.status, code, message_ar));
     });
 
     xhr.addEventListener("error", () => {
       cleanup();
-      reject({ status: 0, code: "network.error", message_ar: "" } satisfies ApiError);
+      reject(new ApiError(0, "network.error", ""));
     });
 
     xhr.addEventListener("abort", () => {
       cleanup();
-      reject({ status: 0, code: "upload.aborted", message_ar: "" } satisfies ApiError);
+      reject(new ApiError(0, "upload.aborted", ""));
     });
 
     function cleanup(): void {
@@ -146,11 +157,6 @@ export function uploadMeetingFile(
 }
 
 const speakersResponseSchema = z.array(speakerSchema);
-
-export async function listSpeakers(id: string): Promise<Speaker[]> {
-  const job = await getMeeting(id);
-  return job.speakers;
-}
 
 export async function renameSpeakers(
   id: string,

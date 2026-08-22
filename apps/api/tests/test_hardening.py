@@ -1,6 +1,7 @@
 import threading
 import time
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +11,7 @@ from app.features.analysis.llm_groq import GroqMinutesExtractor
 from app.features.meetings.sniff import looks_like_audio
 from app.features.transcription.stt_groq import GroqTranscriber
 from app.main import create_app
-from app.shared.models import Analysis
+from app.shared.models import Analysis, Topic
 
 from .test_api import fake_transcribe
 
@@ -39,7 +40,7 @@ def _fake_extract(self, meta, sentences, speakers, job_id=None):
     return Analysis(
         title="اجتماع",
         attendees=["المتحدث 1"],
-        topics=["خدمة"],
+        topics=[Topic(title="الخدمة", summary="نوقشت الخدمة", segment_ids=["s1"])],
         decisions=[],
         directives=[],
         tasks=[],
@@ -83,7 +84,12 @@ def test_upload_rate_limit_returns_429(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wav_file: Path
 ):
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
-    client = _client(tmp_path, monkeypatch, RATE_LIMIT_ENABLED="true")
+    client = _client(
+        tmp_path,
+        monkeypatch,
+        RATE_LIMIT_ENABLED="true",
+        MAX_ACTIVE_JOBS="8",
+    )
     body = wav_file.read_bytes()
     statuses = [
         client.post("/api/meetings", files={"audio": ("clip.wav", body, "audio/wav")}).status_code
@@ -91,6 +97,27 @@ def test_upload_rate_limit_returns_429(
     ]
     assert 429 in statuses
     assert client.get("/api/health").status_code == 200
+
+
+def test_upload_rate_limit_separates_proxy_clients(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wav_file: Path
+):
+    client = _client(
+        tmp_path,
+        monkeypatch,
+        RATE_LIMIT_ENABLED="true",
+        MAX_ACTIVE_JOBS="8",
+    )
+    body = wav_file.read_bytes()
+    statuses = [
+        client.post(
+            "/api/meetings",
+            files={"audio": ("clip.wav", body, "audio/wav")},
+            headers={"X-Mahdar-Client-IP": f"198.51.100.{index}"},
+        ).status_code
+        for index in range(1, 5)
+    ]
+    assert statuses == [201, 201, 201, 201]
 
 
 def test_busy_server_returns_503_when_first_job_holds_the_only_slot(
@@ -126,3 +153,24 @@ def test_busy_server_returns_503_when_first_job_holds_the_only_slot(
     assert second.status_code == 503
     assert second.headers.get("retry-after") == "30"
     assert "error_ar" in second.json()
+
+
+def test_failed_pipeline_admission_removes_job_and_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wav_file: Path
+):
+    client = _client(tmp_path, monkeypatch, RATE_LIMIT_ENABLED="false")
+    job_id = "a" * 12
+    monkeypatch.setattr(
+        "app.features.meetings.routes.uuid.uuid4",
+        lambda: UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+    )
+    monkeypatch.setattr(client.app.state.pipeline, "start", lambda _job_id: False)
+
+    response = client.post(
+        "/api/meetings",
+        files={"audio": ("meeting.wav", wav_file.read_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 503
+    assert client.app.state.registry.get(job_id) is None
+    assert not client.app.state.registry.job_dir(job_id).exists()

@@ -1,11 +1,12 @@
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from app import constants
 from app.features.analysis import citations, prompts
 from app.features.analysis.windows import split_into_windows
 from app.pipeline.stagekit import job_log
+from app.shared.errors import AnalysisError
 from app.shared.models import Analysis, MeetingMeta, SegmentCited, Sentence, Speaker
 
 log = logging.getLogger(__name__)
@@ -44,12 +45,11 @@ def _cap_summaries(summaries: list[str], jlog=None) -> list[str]:
 
     logger = jlog if jlog is not None else log
     if len(summaries) > constants.REDUCE_SUMMARY_MAX_ITEMS:
-        logger.warning(
-            "reduce input has %d window summaries, capping to %d",
-            len(summaries),
-            constants.REDUCE_SUMMARY_MAX_ITEMS,
+        raise AnalysisError(
+            "analysis.too_long",
+            f"reduce input has {len(summaries)} windows; limit is "
+            f"{constants.REDUCE_SUMMARY_MAX_ITEMS}",
         )
-        summaries = summaries[: constants.REDUCE_SUMMARY_MAX_ITEMS]
     joined = "\n".join(summaries)
     if prompts.estimate_tokens(joined) > constants.REDUCE_TOKEN_BUDGET:
         logger.warning("reduce input preview: %.*s", constants.REDUCE_ITEM_PREVIEW_CHARS, joined)
@@ -67,7 +67,7 @@ def _ground_window_ids(part: Analysis, window: list[Sentence]) -> Analysis:
                 seen.append(raw)
         return seen
 
-    def ground(items: list[SegmentCited]) -> list:
+    def ground[T: SegmentCited](items: Sequence[T]) -> list[T]:
         return [item.model_copy(update={"segment_ids": fix(item.segment_ids)}) for item in items]
 
     return part.model_copy(
@@ -89,10 +89,10 @@ def _window_summary(part: Analysis) -> str:
     ]
     for topic in part.topics:
         lines.append(f"TOPIC [{_ids(topic)}]: {topic.title} | {topic.summary}")
-    for item in part.decisions:
-        lines.append(f"DECISION [{_ids(item)}]: {item.text}")
-    for item in part.directives:
-        lines.append(f"DIRECTIVE [{_ids(item)}]: {item.text}")
+    for decision in part.decisions:
+        lines.append(f"DECISION [{_ids(decision)}]: {decision.text}")
+    for directive in part.directives:
+        lines.append(f"DIRECTIVE [{_ids(directive)}]: {directive.text}")
     for task in part.tasks:
         lines.append(f"TASK [{_ids(task)}]: {task.description}")
     return "\n".join(lines)
@@ -125,9 +125,9 @@ def _union_attendees(partials: list[Analysis], reduced: list[str]) -> list[str]:
     return seen
 
 
-def _merge_items(reduced_items: list) -> list:
+def _merge_items[T: SegmentCited](reduced_items: list[T]) -> list[T]:
 
-    kept: list = []
+    kept: list[T] = []
     for item in reduced_items:
         match = next((k for k in kept if citations.map_similar(k, item)), None)
         if match is None:

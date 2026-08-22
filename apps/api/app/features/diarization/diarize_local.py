@@ -2,7 +2,6 @@ import logging
 import threading
 from pathlib import Path
 
-from app import constants
 from app.config import Settings
 from app.shared.errors import DiarizationError
 from app.shared.models import Turn
@@ -79,8 +78,3 @@ def _turns_from(output) -> list[Turn]:
         Turn(start=round(turn.start, 3), end=round(turn.end, 3), speaker=speaker)
         for turn, _, speaker in annotation.itertracks(yield_label=True)
     ]
-
-
-def estimated_ram_bytes(duration_s: float) -> int:
-
-    return int(duration_s * constants.DIARIZATION_RAM_BYTES_PER_SECOND)

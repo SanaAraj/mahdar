@@ -40,6 +40,9 @@ export function useUpload(): UseUploadResult {
         replace: true,
       });
     },
+    onError: () => {
+      setProgressPct(0);
+    },
     onSettled: () => {
       abortRef.current = null;
     },

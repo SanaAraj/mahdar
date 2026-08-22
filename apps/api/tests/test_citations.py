@@ -41,6 +41,19 @@ def test_fabricated_item_with_valid_ids_drops():
     assert cleaned.decisions == []
 
 
+def test_single_generic_shared_word_does_not_ground_a_long_item():
+    analysis = _holding(
+        {
+            "decisions": [
+                Decision(text="اعتماد خطة التوظيف الجديدة", segment_ids=["s3"]),
+            ]
+        }
+    )
+    cleaned, dropped = validate(analysis, SENTENCES)
+    assert dropped == 1
+    assert cleaned.decisions == []
+
+
 def test_latin_term_overlap_counts():
     analysis = _holding(
         {
@@ -184,7 +197,7 @@ def test_hallucinated_model_date_with_null_raw_is_cleared():
 
     from datetime import date
 
-    from app.pipeline.pipeline import apply_meeting_task_dates
+    from app.features.analysis.service import apply_meeting_task_dates
 
     task = TaskItem(
         description="مهمة",

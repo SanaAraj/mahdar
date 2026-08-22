@@ -6,22 +6,19 @@ from hijridate import Hijri
 _WORD_NUMBER = {
     "يوم": 1,
     "يومين": 2,
-    "أيام": 3,
-    "أسبوع": 7,
-    "أسبوعين": 14,
-    "أسابيع": 21,
+    "ايام": 3,
+    "اسبوع": 7,
+    "اسبوعين": 14,
+    "اسابيع": 21,
 }
 
 _HIJRI_MONTHS = {
     "محرم": 1,
     "صفر": 2,
-    "ربيع الأول": 3,
-    "ربيع الآخر": 4,
-    "ربيع الثاني": 4,
+    "ربيع الاول": 3,
     "ربيع الاخر": 4,
-    "جمادى الأولى": 5,
+    "ربيع الثاني": 4,
     "جمادى الاولى": 5,
-    "جمادى الآخرة": 6,
     "جمادى الاخرة": 6,
     "جمادى الثانية": 6,
     "رجب": 7,
@@ -35,18 +32,13 @@ _HIJRI_MONTHS = {
 }
 
 _DAY_INDEX = {
-    "الأحد": 6,
     "الاحد": 6,
-    "أحد": 6,
     "احد": 6,
     "الاثنين": 0,
-    "الإثنين": 0,
     "اثنين": 0,
     "الثلاثاء": 1,
     "ثلاثاء": 1,
-    "الأربعاء": 2,
     "الاربعاء": 2,
-    "أربعاء": 2,
     "اربعاء": 2,
     "الخميس": 3,
     "خميس": 3,
@@ -57,9 +49,9 @@ _DAY_INDEX = {
 }
 
 _RANGES = {
-    "أيام": (3, 364),
-    "أسابيع": (3, 52),
-    "أشهر": (3, 36),
+    "ايام": (3, 364),
+    "اسابيع": (3, 52),
+    "اشهر": (3, 36),
 }
 
 _HIJRI_MONTH_RE = "محرم|صفر|شعبان|رجب|رمضان|شوال|ذو القعدة|ذي القعدة|ذو الحجة|ذي الحجة"
@@ -93,7 +85,8 @@ def _clean(raw: str | None) -> str:
     if not raw:
         return ""
     text = re.sub(r"\s+", " ", raw.strip())
-    return text.replace("ـ", "")
+    text = text.replace("ـ", "")
+    return re.sub(r"[أإآٱ]", "ا", text)
 
 
 def _absolute(text: str) -> date | None:
@@ -132,36 +125,39 @@ def _parse_hijri(text: str) -> date | None:
 
 def _relative(text: str, anchor: date) -> date | None:
     if text.startswith("قبل "):
-        text = text.removeprefix("قبل ")
+        remainder = text.removeprefix("قبل ")
+        if not remainder.startswith("نهاية "):
+            return _relative_offset(remainder, anchor, -1)
+        text = remainder
     if text == "غدًا" or text == "غدا":
         return anchor + timedelta(days=1)
     if text == "بعد غد":
         return anchor + timedelta(days=2)
-    if text in ("يوم الأحد القادم", "يوم الاحد القادم"):
-        text = "الأحد القادم"
+    if text == "يوم الاحد القادم":
+        text = "الاحد القادم"
     day_match = re.fullmatch(r"(?:يوم\s+)?(\S+)\s+القادم", text)
     if day_match and day_match.group(1) in _DAY_INDEX:
         return _next_weekday(anchor, _DAY_INDEX[day_match.group(1)])
-    after = re.fullmatch(r"(?:بعد|خلال)\s+(\d+)\s+(أيام|أسابيع|أشهر)", text)
+    after = re.fullmatch(r"(?:بعد|خلال)\s+(\d+)\s+(ايام|اسابيع|اشهر)", text)
     if after:
         return _after_units(anchor, int(after.group(1)), after.group(2))
-    dual = re.fullmatch(r"(?:بعد|خلال)\s+(يومين|أسبوعين)", text)
+    dual = re.fullmatch(r"(?:بعد|خلال)\s+(يومين|اسبوعين)", text)
     if dual:
         return anchor + timedelta(days=_WORD_NUMBER[dual.group(1)])
     if text == "بعد شهرين":
         return _add_months(anchor, 2)
-    single = re.fullmatch(r"بعد\s+(يوم|أسبوع)", text)
+    single = re.fullmatch(r"بعد\s+(يوم|اسبوع)", text)
     if single:
         return anchor + timedelta(days=_WORD_NUMBER[single.group(1)])
     if text == "بعد شهر":
         return _add_months(anchor, 1)
-    if text in ("الأسبوع القادم", "الأسبوع المقبل", "الأسبوع الجاي"):
+    if text in ("الاسبوع القادم", "الاسبوع المقبل", "الاسبوع الجاي"):
         return anchor + timedelta(days=7)
-    if text == "نهاية الأسبوع":
+    if text == "نهاية الاسبوع":
         return _coming_weekday(anchor, 4)
-    if text == "نهاية أسبوع العمل":
+    if text == "نهاية اسبوع العمل":
         return _coming_weekday(anchor, 3)
-    if text in ("نهاية الأسبوع القادم", "نهاية الأسبوع المقبل", "نهاية الأسبوع الجاي"):
+    if text in ("نهاية الاسبوع القادم", "نهاية الاسبوع المقبل", "نهاية الاسبوع الجاي"):
         return _coming_weekday(anchor, 4) + timedelta(days=7)
     if text == "نهاية الشهر":
         return _month_end(anchor, 0)
@@ -170,15 +166,36 @@ def _relative(text: str, anchor: date) -> date | None:
     return None
 
 
+def _relative_offset(text: str, anchor: date, direction: int) -> date | None:
+    counted = re.fullmatch(r"(\d+)\s+(ايام|اسابيع|اشهر)", text)
+    if counted:
+        return _shift_units(anchor, int(counted.group(1)), counted.group(2), direction)
+    dual = re.fullmatch(r"(يومين|اسبوعين)", text)
+    if dual:
+        return anchor + timedelta(days=direction * _WORD_NUMBER[dual.group(1)])
+    single = re.fullmatch(r"(يوم|اسبوع)", text)
+    if single:
+        return anchor + timedelta(days=direction * _WORD_NUMBER[single.group(1)])
+    if text == "شهر":
+        return _add_months(anchor, direction)
+    if text == "شهرين":
+        return _add_months(anchor, 2 * direction)
+    return None
+
+
 def _after_units(anchor: date, count: int, unit: str) -> date | None:
+    return _shift_units(anchor, count, unit, 1)
+
+
+def _shift_units(anchor: date, count: int, unit: str, direction: int) -> date | None:
     low, high = _RANGES[unit]
     if count < low or count > high:
         return None
-    if unit == "أيام":
-        return anchor + timedelta(days=count)
-    if unit == "أسابيع":
-        return anchor + timedelta(weeks=count)
-    return _add_months(anchor, count)
+    if unit == "ايام":
+        return anchor + timedelta(days=direction * count)
+    if unit == "اسابيع":
+        return anchor + timedelta(weeks=direction * count)
+    return _add_months(anchor, direction * count)
 
 
 def _coming_weekday(anchor: date, weekday: int) -> date:

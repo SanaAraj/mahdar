@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 
 import { getAudioUrl } from "@/lib/api-client";
 import { strings } from "@/lib/strings";
@@ -31,17 +31,21 @@ export interface PlayerProviderProps {
 export function PlayerProvider({ meetingId, sentences, children }: PlayerProviderProps) {
   const player = useAudioPlayer(getAudioUrl(meetingId), strings.audioFailed);
   const sentencesRef = useRef<Sentence[]>(sentences);
-  sentencesRef.current = sentences;
+  const { play, seekTo } = player;
+
+  useEffect(() => {
+    sentencesRef.current = sentences;
+  }, [sentences]);
 
   const seekToSentence = useCallback(
     (id: string): boolean => {
       const match = sentencesRef.current.find((s) => s.id === id);
       if (!match) return false;
-      player.seekTo(match.start);
-      player.play();
+      seekTo(match.start);
+      play();
       return true;
     },
-    [player.seekTo, player.play],
+    [play, seekTo],
   );
 
   const api = useMemo<PlayerApi>(
@@ -58,7 +62,19 @@ export function PlayerProvider({ meetingId, sentences, children }: PlayerProvide
       reload: player.reload,
       seekToSentence,
     }),
-    [player, seekToSentence],
+    [
+      player.currentTime,
+      player.duration,
+      player.errorAr,
+      player.isPlaying,
+      player.isReady,
+      player.pause,
+      player.play,
+      player.reload,
+      player.seekTo,
+      player.toggle,
+      seekToSentence,
+    ],
   );
 
   return <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>;

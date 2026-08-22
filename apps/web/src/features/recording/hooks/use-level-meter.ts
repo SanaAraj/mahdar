@@ -20,7 +20,10 @@ export function useLevelMeter({
 }: UseLevelMeterOptions): UseLevelMeterResult {
   const discRef = useRef<HTMLDivElement | null>(null);
   const onLevelRef = useRef(onLevel);
-  onLevelRef.current = onLevel;
+
+  useEffect(() => {
+    onLevelRef.current = onLevel;
+  }, [onLevel]);
 
   useEffect(() => {
     if (!stream) return;

@@ -8,7 +8,7 @@ MESSAGES: dict[str, str] = {
     "speaker.unknown": "أحد المتحدثين غير موجود في هذا الاجتماع",
     "speaker.empty_label": "اسم المتحدث لا يمكن أن يكون فارغًا",
     "speaker.label_too_long": "اسم المتحدث يتجاوز الحد المسموح",
-    "speaker.bad_body": "صيغة الطلب غير صحيحة",
+    "request.invalid": "صيغة الطلب غير صحيحة",
     "app.title": "محضر",
     "audio.ffmpeg_missing": "أدوات معالجة الصوت غير متوفرة على الخادم",
     "audio.corrupt": "تعذّرت قراءة ملف الصوت، يبدو أنه تالف أو بصيغة غير صالحة",

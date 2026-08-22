@@ -53,7 +53,7 @@ def build_extractor(settings: Settings) -> MinutesExtractor:
     return _UnknownExtractor(settings.llm_provider)
 
 
-def _validate_providers(settings: Settings) -> None:
+def validate_providers(settings: Settings) -> None:
 
     for key, value, valid in (
         ("STT_PROVIDER", settings.stt_provider, _VALID_STT_PROVIDERS),

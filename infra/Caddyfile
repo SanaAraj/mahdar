@@ -1,6 +1,8 @@
 :8100 {
     handle /api/* {
-        reverse_proxy api:8000
+        reverse_proxy api:8000 {
+            header_up X-Mahdar-Client-IP {remote_host}
+        }
     }
     handle {
         reverse_proxy web:3000

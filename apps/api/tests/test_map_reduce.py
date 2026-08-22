@@ -47,7 +47,7 @@ def _tokens_of(sentences: list[Sentence]) -> int:
 @pytest.fixture(autouse=True)
 def _reset_llm_caches(monkeypatch):
     monkeypatch.setattr("app.features.analysis.llm_preflight._models_cache", None)
-    monkeypatch.setattr("app.features.analysis.llm_groq._include_reasoning_supported", True)
+    monkeypatch.setattr("app.features.analysis.llm_groq._reasoning_support.enabled", True)
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     yield
 
@@ -113,6 +113,18 @@ def test_map_similar_fuses_heading_in_body_containment():
 def test_map_similar_keeps_distinct_items_separate():
     a = Decision(text="اعتماد ميزانية التسويق", segment_ids=["s1"])
     b = Decision(text="تعيين مدير جديد للفرع", segment_ids=["s2"])
+    assert citations.map_similar(a, b) is False
+
+
+def test_map_similar_does_not_merge_long_items_on_three_generic_tokens():
+    a = Decision(
+        text="اعتماد خطة العمل الجديدة لفريق التسويق في الرياض",
+        segment_ids=["s1"],
+    )
+    b = Decision(
+        text="اعتماد خطة العمل السنوية لفريق التقنية في جدة",
+        segment_ids=["s2"],
+    )
     assert citations.map_similar(a, b) is False
 
 
@@ -251,6 +263,13 @@ def test_reduce_input_over_budget_fails_before_network():
     huge = ["TOPIC [s1]: " + "كلمة " * 9000]
     with pytest.raises(AnalysisError) as exc:
         prompts.build_reduce_message(huge)
+    assert exc.value.message_key == "analysis.too_long"
+
+
+def test_reduce_window_limit_fails_instead_of_dropping_later_windows():
+    summaries = [f"TOPIC [s{index}]: بند" for index in range(61)]
+    with pytest.raises(AnalysisError) as exc:
+        mapreduce._cap_summaries(summaries)
     assert exc.value.message_key == "analysis.too_long"
 
 

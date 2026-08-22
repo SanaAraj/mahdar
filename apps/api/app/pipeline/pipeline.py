@@ -20,9 +20,6 @@ from app.shared.protocols import Diarizer, MinutesExtractor, Transcriber
 log = logging.getLogger(__name__)
 
 
-apply_meeting_task_dates = analysis.apply_meeting_task_dates
-
-
 class Pipeline:
     def __init__(
         self,
@@ -37,10 +34,8 @@ class Pipeline:
         self._diarizer = diarizer
         self._extractor = extractor
         self._slots = BoundedSemaphore(max_active)
-
-    def has_capacity(self) -> bool:
-
-        return self._slots._value > 0
+        self._admission_lock = threading.Lock()
+        self._active_jobs: set[str] = set()
 
     def start(self, job_id: str) -> bool:
         return self._spawn(self._guarded_run, job_id)
@@ -50,22 +45,33 @@ class Pipeline:
         return self._spawn(self._guarded_run_analysis, job_id)
 
     def _spawn(self, body, job_id: str) -> bool:
-        if not self._slots.acquire(blocking=False):
-            return False
-        threading.Thread(target=body, args=(job_id,), daemon=True).start()
+        with self._admission_lock:
+            if job_id in self._active_jobs or not self._slots.acquire(blocking=False):
+                return False
+            self._active_jobs.add(job_id)
+        try:
+            threading.Thread(target=body, args=(job_id,), daemon=True).start()
+        except Exception:
+            self._release(job_id)
+            raise
         return True
+
+    def _release(self, job_id: str) -> None:
+        with self._admission_lock:
+            self._active_jobs.discard(job_id)
+            self._slots.release()
 
     def _guarded_run(self, job_id: str) -> None:
         try:
             self.run(job_id)
         finally:
-            self._slots.release()
+            self._release(job_id)
 
     def _guarded_run_analysis(self, job_id: str) -> None:
         try:
             self.run_analysis(job_id)
         finally:
-            self._slots.release()
+            self._release(job_id)
 
     def run(self, job_id: str) -> None:
         if self._registry.get(job_id) is None:
@@ -131,7 +137,10 @@ class Pipeline:
         self._finish_analysis(job_id, sentences, speakers, meta, anchor)
 
     def _finish_analysis(self, job_id, sentences, speakers, meta, anchor) -> None:
-        result = self._extractor.extract(meta, sentences, speakers, job_id=job_id)
+        extractor = self._extractor
+        if extractor is None:
+            raise AnalysisError("analysis.failed", "no extractor configured")
+        result = extractor.extract(meta, sentences, speakers, job_id=job_id)
         result, dropped = analysis.clean_citations(result, sentences)
         if dropped:
             job_log(log, job_id).info("dropped %d items without valid citations", dropped)

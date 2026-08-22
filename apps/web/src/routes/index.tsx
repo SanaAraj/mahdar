@@ -44,6 +44,7 @@ function HomePage() {
   const recorder = useRecorder();
   const [pageError, setPageError] = useState<string | null>(null);
   const upload = useUpload();
+  const uploadError = upload.error?.message_ar || (upload.error ? strings.uploadFailed : null);
 
   useBeforeUnload(recorder.state === "recording" || recorder.state === "paused");
 
@@ -62,14 +63,17 @@ function HomePage() {
   return (
     <main className="min-h-screen py-3 sm:py-5">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-        {pageError ? (
+        {pageError || uploadError ? (
           <Alert variant="danger" className="mb-4">
-            <AlertDescription>{pageError}</AlertDescription>
+            <AlertDescription>{pageError ?? uploadError}</AlertDescription>
           </Alert>
         ) : null}
         <HomeBody
           recorder={recorder}
-          onUpload={(file) => upload.upload(file)}
+          onUpload={(file) => {
+            setPageError(null);
+            upload.upload(file);
+          }}
           onUploadError={setPageError}
         />
       </div>

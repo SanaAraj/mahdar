@@ -75,6 +75,8 @@ def split_directional(text: str) -> list[tuple[str, bool]]:
             cursor = rtl.end()
             continue
         ltr = _LTR_RUN_RE.match(text, cursor)
+        if ltr is None:
+            break
         parts.append((ltr.group(0), False))
         cursor = ltr.end()
     return parts

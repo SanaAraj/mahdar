@@ -28,8 +28,8 @@ describe("formatClock", () => {
   });
 
   it("rolls over into hours", () => {
-    expect(formatClock(3600)).toBe("60:00");
-    expect(formatClock(3661)).toBe("61:01");
+    expect(formatClock(3600)).toBe("1:00:00");
+    expect(formatClock(3661)).toBe("1:01:01");
   });
 });
 

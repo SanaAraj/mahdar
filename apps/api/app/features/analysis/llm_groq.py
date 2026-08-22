@@ -7,9 +7,12 @@ from app.config import Settings
 from app.features.analysis import mapreduce, prompts
 from app.features.analysis.llm_parse import has_arabic_output as _has_arabic_output
 from app.features.analysis.llm_parse import json_object as _json_object
-from app.features.analysis.llm_parse import strip_reasoning as strip_reasoning
 from app.features.analysis.llm_preflight import available_models, suggest_models
-from app.features.analysis.llm_transport import ChatProviderTransport, GroqChatConfig
+from app.features.analysis.llm_transport import (
+    ChatProviderTransport,
+    GroqChatConfig,
+    ReasoningSupport,
+)
 from app.pipeline.stagekit import job_log
 from app.shared.errors import AnalysisError
 from app.shared.models import Analysis, MeetingMeta, Sentence, Speaker
@@ -20,19 +23,15 @@ log = logging.getLogger(__name__)
 _LABEL = "Groq LLM"
 
 
-_include_reasoning_support: list[bool] = [True]
-
-
-_include_reasoning_supported: bool = True
+_reasoning_support = ReasoningSupport()
 
 
 class GroqMinutesExtractor:
     def __init__(self, settings: Settings, transport: ChatProviderTransport | None = None) -> None:
         self._settings = settings
 
-        _include_reasoning_support[0] = _include_reasoning_supported
         self._transport = transport or ChatProviderTransport(
-            GroqChatConfig(settings, _include_reasoning_support)
+            GroqChatConfig(settings, _reasoning_support)
         )
 
     def extract(

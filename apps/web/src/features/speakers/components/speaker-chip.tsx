@@ -34,16 +34,13 @@ export function SpeakerChip({
   onRenameDismiss,
 }: SpeakerChipProps) {
   const [editing, setEditing] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
   const errorTimerRef = useRef<number | null>(null);
   const color = speakerColorFor(speaker.id);
 
   useEffect(() => {
     if (renameErrorAr) {
-      setLocalError(renameErrorAr);
       if (errorTimerRef.current !== null) window.clearTimeout(errorTimerRef.current);
       errorTimerRef.current = window.setTimeout(() => {
-        setLocalError(null);
         errorTimerRef.current = null;
         onRenameDismiss();
       }, CHIP_ERROR_MS);
@@ -73,8 +70,6 @@ export function SpeakerChip({
     onRename({ speakerId: speaker.id, label });
     setEditing(false);
   };
-
-  const shownError = localError;
 
   return (
     <div
@@ -122,12 +117,12 @@ export function SpeakerChip({
           </svg>
         </button>
       )}
-      {shownError ? (
+      {renameErrorAr ? (
         <span
           role="alert"
           className="px-1.5 text-[12px] text-[var(--color-danger)]"
         >
-          {shownError}
+          {renameErrorAr}
         </span>
       ) : null}
     </div>

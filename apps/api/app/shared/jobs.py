@@ -67,7 +67,12 @@ class JobRegistry:
 
     def get(self, job_id: str) -> MeetingJob | None:
         with self._lock:
-            return self._jobs.get(job_id)
+            job = self._jobs.get(job_id)
+            return job.model_copy(deep=True) if job is not None else None
+
+    def delete(self, job_id: str) -> None:
+        with self._lock:
+            self._jobs.pop(job_id, None)
 
     def job_dir(self, job_id: str) -> Path:
         return self._data_dir / job_id

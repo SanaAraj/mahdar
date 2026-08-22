@@ -46,7 +46,7 @@ def export_docx(request: Request, job_id: str) -> FileResponse:
     path = registry_of(request).job_dir(job.id) / "export.docx"
 
     tmp = path.with_name(f"export.{uuid.uuid4().hex}.docx.tmp")
-    docx_build.build(build_export(job)).save(tmp)
+    docx_build.build(build_export(job)).save(str(tmp))
     tmp.replace(path)
     return FileResponse(
         path,

@@ -2,9 +2,13 @@ import { speakerCount, strings } from "./strings";
 import type { MeetingJob } from "./schemas";
 
 export function formatClock(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
-  const s = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
+  const total = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export function formatDuration(seconds: number): string {

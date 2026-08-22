@@ -19,6 +19,12 @@ _API_URL = constants.GROQ_API_BASE + constants.STT_API_PATH
 _FALLBACK_WORD_DURATION_S: float = 1.0
 
 
+def _dict_items(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
 def _word_span(item: dict, offset: float) -> tuple[float, float] | None:
 
     try:
@@ -116,9 +122,7 @@ class GroqTranscriber:
     def _map_words(self, raw_words: object, offset: float, raw_segments: object) -> list[Word]:
         spans = _segment_stat_spans(raw_segments, offset)
         mapped: list[Word] = []
-        for item in raw_words or []:
-            if not isinstance(item, dict):
-                continue
+        for item in _dict_items(raw_words):
             text = _first_text(item)
             if (span := _word_span(item, offset)) is None:
                 continue
@@ -129,11 +133,7 @@ class GroqTranscriber:
         return mapped
 
     def _map_segments(self, raw_segments: object, full_text: str, offset: float) -> list[Word]:
-        segments = [
-            s
-            for s in (raw_segments or [])
-            if isinstance(s, dict) and str(s.get("text", "")).strip()
-        ]
+        segments = [s for s in _dict_items(raw_segments) if str(s.get("text", "")).strip()]
         if not segments and full_text.strip():
             return [
                 Word(
@@ -193,9 +193,7 @@ def _segment_stat_spans(
     raw_segments: object, offset: float
 ) -> list[tuple[float, float, dict[str, float]]]:
     spans: list[tuple[float, float, dict[str, float]]] = []
-    for seg in raw_segments or []:
-        if not isinstance(seg, dict):
-            continue
+    for seg in _dict_items(raw_segments):
         stats = _segment_stats_of(seg)
         if not stats or (span := _word_span(seg, offset)) is None:
             continue

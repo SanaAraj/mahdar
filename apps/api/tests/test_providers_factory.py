@@ -60,12 +60,12 @@ def test_unknown_llm_provider_raises_in_the_stage():
 
 def test_validate_providers_logs_unknown_values(caplog):
     with caplog.at_level(logging.ERROR, logger="app.factory"):
-        factory._validate_providers(_settings(stt_provider="bad", llm_provider="bad2"))
+        factory.validate_providers(_settings(stt_provider="bad", llm_provider="bad2"))
     assert "STT_PROVIDER" in caplog.text and "LLM_PROVIDER" in caplog.text
 
 
 def test_validate_providers_is_quiet_for_valid(caplog):
     with caplog.at_level(logging.ERROR, logger="app.factory"):
-        factory._validate_providers(_settings())
-        factory._validate_providers(_settings(stt_provider="cohere"))
+        factory.validate_providers(_settings())
+        factory.validate_providers(_settings(stt_provider="cohere"))
     assert caplog.text == ""
