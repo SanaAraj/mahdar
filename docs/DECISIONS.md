@@ -1,328 +1,182 @@
-# Decisions
+# Mahdar technical decisions
 
-A dated log of the choices behind Mahdar's pipeline, in the order they were
-made. The housekeeping choices (packaging, fonts, volume layout) are left out
-on purpose; what is here is the part that touches the models and the data that
-flows around them.
+> Current architecture only. This is a decision record, not a development diary.
 
-## 2026-08-18: Groq's whisper-large-v3 for transcription
+Mahdar's first version was developed locally before its Git history was created. No
+complete GitHub project or ready-made meeting-minutes application was imported. The
+frameworks, models, services, and UI primitives used by the project are listed in
+the README together with the product-specific work built around them. Each decision
+below records the context, the chosen approach, and the remaining trade-off.
 
-Groq serves Whisper large v3 with word-level timestamps on a free tier big
-enough for real use, and the word timing is what makes sentence-level seek
-possible later in the UI. The API caps uploads at 25 MB, so anything over
-24 MB is split at silence points first and the parts are transcribed with a
-running offset. The split offsets advance by the intended window, never by the
-re-probed length of the encoded part, because an MP3 that lands a few hundred
-milliseconds short would otherwise drag every later timestamp with it.
+## Decision index
 
-## 2026-08-18: openai/gpt-oss-120b for the minutes
+| ID | Decision |
+| --- | --- |
+| D1 | [Inference providers](#d1-inference-providers) |
+| D2 | [Speaker diarization](#d2-speaker-diarization) |
+| D3 | [Timestamped sentences](#d3-timestamped-sentences) |
+| D4 | [Evidence-grounded minutes](#d4-evidence-grounded-minutes) |
+| D5 | [Deterministic date handling](#d5-deterministic-date-handling) |
+| D6 | [Long recordings and transcripts](#d6-long-recordings-and-transcripts) |
+| D7 | [State and concurrency](#d7-state-and-concurrency) |
+| D8 | [Web and API deployment](#d8-web-and-api-deployment) |
+| D9 | [Failure handling](#d9-failure-handling) |
+| D10 | [Reviewed exports](#d10-reviewed-exports) |
 
-Groq retired llama-3.3-70b-versatile and qwen/qwen3-32b in June 2026 and
-steered accounts to openai/gpt-oss-120b, so that is the default now. A model
-id can die between two builds, so the analyze stage checks the /models
-listing once per process and, if the configured id is gone, fails with an
-Arabic message naming live alternatives instead of hanging on a dead model.
+## D1. Inference providers
 
-## 2026-08-18: English rules in the prompt, Arabic values out
+**Context.** The main path needs good Arabic transcription, word timestamps, and a
+setup an evaluator can run without a GPU. It should also have a path that does not
+depend on a hosted inference provider.
 
-The extraction system prompt is written in English with a few Arabic
-exemplars embedded; every JSON value must come back Arabic while the field
-names stay English per the schema. I ran an A/B against the original
-all-Arabic prompt on three clips (two Gulf, one Egyptian): six runs, no
-retries, nothing dropped, fully Arabic output both ways. On that evidence the
-two prompts are equal, and the English one stayed because it follows
-instructions harder and survives a model swap. The retired Arabic prompt is
-kept as tests/fixture_prompt_arabic.py as the honest record of what was
-compared; the app never imports it, and no automated harness re-runs the
-comparison.
+**Decision.** Groq is the default and validated provider for both STT and minutes
+extraction, using `whisper-large-v3` and `openai/gpt-oss-120b`. The same interfaces
+also support faster-whisper `large-v3-turbo` on CPU and a configurable
+Ollama-hosted model, defaulting to `qwen3:8b`. That local path is implemented and
+covered by mocked tests, but it has not been run end to end with real local models
+and is not part of the validated submission flow. The application checks the
+configured cloud LLM before analysis and returns a clear Arabic error if it is
+unavailable.
 
-## 2026-08-18: every extracted item must cite its sentences
+**Trade-off.** The validated cloud path avoids local model setup, but it sends audio
+and transcript context to an external service. The local path is intended to keep
+inference local after model download, but its real startup behavior, CPU
+performance, storage use, and output quality have not yet been verified. None of
+these models was trained or fine-tuned here.
 
-The transcript goes in with an [sN] id on each line, and every topic,
-decision, and task has to echo the ids it rests on. Two guards then run.
-First existence: ids pointing at nothing are trimmed, and an item left with
-none is dropped. Second overlap: the item's own wording must share at least
-one normalized content token with the sentences it cites, or it goes. That
-second guard exists because I watched the model cite perfectly valid ids
-while describing things nobody said. Normalization folds the alef and hamza
-forms, ta marbuta, diacritics, and tokens under three characters, and is used
-only for matching; stored text is never rewritten. An early version checked
-only the topic summary and dropped grounded items whose summary happened to
-be a paraphrase, so the guard now reads all of an item's content fields
-together.
+## D2. Speaker diarization
 
-## 2026-08-18: dates are computed by code, never by the model
+**Context.** Speaker labels make the transcript more useful, but diarization is
+CPU-heavy and the pyannote model requires separate Hugging Face access. A missing
+token should not make the whole meeting unusable.
 
-The model passes back only the phrase as said: "end of week", "after a
-month", a Hijri date. A deterministic layer turns that into a Gregorian date
-and its Umm al-Qura Hijri counterpart, anchored to the meeting date. The
-rules that mattered: "next Thursday" always means next week's (whoever means
-the nearest Thursday just says "Thursday"); the Saudi work week ends on
-Thursday and the weekend starts Friday, so "end of week" lands on Friday and
-"end of work week" on Thursday; "after a month" is a calendar month, clamped
-so January 31 plus one month ends at the last day of February rather than the
-start of March. A Hijri date spoken without a year is genuinely ambiguous and
-comes back empty. Anything the layer cannot match stays null. It does not
-guess, and a date the model made up is cleared whenever the raw phrase is
-missing.
+**Decision.** `pyannote/speaker-diarization-community-1` runs locally on CPU at the
+same time as transcription. If it cannot load, its stage is marked as skipped and
+the text pipeline continues. Each sentence is assigned to the turn with the largest
+time overlap, and speakers are numbered by first appearance. A speaker change also
+closes the current sentence so short exchanges are not credited to one person.
 
-## 2026-08-18: sentences close on pauses, terminators, and hard limits
+**Trade-off.** This keeps transcription available and avoids another cloud service,
+but diarization can take close to the recording duration on CPU. Overlapping speech,
+noise, and similar voices can still produce incorrect boundaries. Renaming remains
+available so the user can correct labels before exporting.
 
-A sentence closes when any of these hit: a pause of 0.75 seconds, a
-terminator, 30 words, or 18 seconds. The terminators are exactly the four the
-spec names: period, the Arabic question mark U+061F, exclamation, and the
-Arabic semicolon U+061B. The colon is deliberately not a closer because it
-shows up in headings and lists without ending anything, and Arabic honorific
-abbreviations that end in a period (the doctor and professor titles) do not
-close a sentence either.
+## D3. Timestamped sentences
 
-## 2026-08-18: diarization is local, optional, and never blocks the text
+**Context.** Raw STT words are too small for reading and raw paragraphs are too
+large for accurate playback, speaker assignment, and source references.
 
-pyannote community-1 runs on CPU in parallel with transcription, so speakers
-never delay the transcript. A missing or rejected Hugging Face token marks
-the stage SKIPPED with a fixed Arabic note and the meeting still completes,
-with speaker left null on every sentence. The pipeline takes the exclusive
-(non-overlapping) diarization output so each sentence maps to exactly one
-turn: the largest time overlap wins, ties go to the earlier turn, and
-speakers are numbered in order of first appearance. Renaming a speaker later
-re-runs the analysis so the minutes pick up the new names. (Later, on
-2026-08-20: pyannote's own audio loader broke on this machine, so the 16 kHz
-WAV is decoded with a small stdlib reader and handed over as a waveform
-instead.)
+**Decision.** Words are assembled into sentences using punctuation, a 0.75-second
+pause, a speaker change, a 30-word limit, or an 18-second limit. Every sentence has
+a stable identifier and start/end timestamps. The transcript, speaker mapping,
+minutes citations, audio seeking, and exports all use that same unit.
 
-## 2026-08-18: extraction gets at most two tries
+**Trade-off.** These rules are deterministic and testable, but they remain
+heuristics. Unusual punctuation or very rapid speech may split a sentence earlier
+or later than a human editor would.
 
-One POST, and at most one corrective retry. A schema-invalid reply gets the
-error tail sent back for one more attempt; a schema-valid reply that comes
-back in English gets one Arabic-output nudge. The two failure modes share the
-single retry slot on purpose, so the request count stays bounded no matter
-what the model does. The extractor also asks for include_reasoning=false and
-drops the field exactly once if a model rejects it.
+## D4. Evidence-grounded minutes
 
-## 2026-08-18: 429s are paced, not hammered
+**Context.** A well-written summary is not useful if it introduces a decision or
+task that nobody said.
 
-The free tier limits tokens per minute, so when a 429 carries a Retry-After
-header the shared retry helper sleeps out the window (capped at 70 seconds)
-instead of retrying inside it. Without the header it falls back to plain
-backoff with a little jitter, so two calls that rate-limit together do not
-wake up together.
+**Decision.** The LLM must return source sentence IDs for each topic, decision,
+directive, and task. Unknown citations are removed. An item with no valid citation,
+or no meaningful normalized text overlap with its cited sentences, is dropped.
+Clicking a supported minutes item seeks to its first source sentence in the audio.
 
-## 2026-08-18: a fully offline path exists
+**Trade-off.** This favors precision over completeness. A valid but heavily
+paraphrased item can be removed by the overlap guard. That is safer than presenting
+an unsupported action as meeting fact.
 
-faster-whisper large-v3-turbo (CPU, int8) and an Ollama-served qwen3:8b sit
-behind the same two provider interfaces, selected with STT_PROVIDER=local and
-LLM_PROVIDER=local. The local extractor subclasses the cloud one, so the
-two-call contract, the Arabic-output guard, the token budgets, and the
-map-reduce path all carry over unchanged. The VAD filter is on for local
-transcription because Whisper's silence hallucination needs suppressing
-wherever the model runs. The costs are stated in the README: about 1.6 GB
-plus 5 GB of first-run downloads, slower CPU processing, and weaker dialect
-handling. The mode exists because the final environment may have no internet
-at all, and a weaker path that runs beats a stronger one that cannot.
+## D5. Deterministic date handling
 
-## 2026-08-19: long transcripts map-reduce, on measured budgets
+**Context.** Meeting tasks often use relative Arabic dates such as "next Thursday"
+or "end of the month". Letting the model calculate them makes the result depend on
+prompt interpretation and can create dates that were never stated.
 
-The budgets here are measured, not guessed. A 37-minute sample got rejected
-by Groq with the payload counted at 9,296 real tokens against an internal
-estimate of 4,247; the old 3.5 characters-per-token assumption was off by
-about 2.2x for Arabic. The constant is now 1.25. The single-call budget is
-8,550 estimated tokens, sized to stay inside the 8K free-tier per-minute
-window, and a map window gets 5,000 after subtracting 3,180 of measured
-prompt overhead and a 370-token safety margin. Windows never split a
-sentence. Windows keep their real sentence ids in the prompt and the model is
-told to cite only the ids shown, so before any merge each window's citations
-are grounded against that window's own id set: a stray id from another window
-is dropped, never remapped. The reduce call sees only the
-compact per-window summaries (capped at 60 items), never the transcript, and
-near-duplicate items fuse and carry the union of their segment ids. The
-merged result passes the same citation, overlap, and date guards as the
-single pass. If even the reduce input overflows, the user gets an Arabic
-message asking them to split the recording; nothing is truncated silently.
+**Decision.** The model returns only the spoken date phrase. A deterministic layer
+resolves supported absolute, relative, Gregorian, and Hijri expressions against the
+meeting date, then produces both calendar values. Unsupported or ambiguous phrases
+remain empty instead of being guessed.
 
-## 2026-08-20: silence hallucinations are filtered, not trusted
+**Trade-off.** The rule set is explainable and testable, but it cannot understand
+every informal phrasing. Extending coverage requires adding a rule and its tests.
 
-A 60-second upload of pure silence came back from Whisper as a confident
-sentence with an invented name, the segment marked no_speech_prob 0.70. That
-settled it: words belonging to segments above 0.6 on that score are
-dropped, and runs of repeated identical sentences (the loop Whisper falls
-into on dead air) are collapsed. The silence clip now produces zero sentences
-instead of a fake one, and the filter runs in the assemble stage so the cloud
-and local paths share it.
+## D6. Long recordings and transcripts
 
-## 2026-08-20: window citations are grounded, never remapped
+**Context.** Hosted providers impose audio-size and token limits. Silently
+truncating a long meeting would create a complete-looking but incomplete record.
 
-The first map-reduce cut assumed each window's reply renumbered its citations
-from s1 and remapped them onto the real ids, while the window prompt showed
-the real ids and told the model to cite only those. A compliant model's
-later-window citations therefore mapped to nothing and every item it
-extracted past the first window was culled by the citation guard. The remap
-is gone: windows keep their real sentence ids end to end, and each window's
-citations are filtered against that window's own id set, so a foreign id is
-dropped instead of being translated onto the wrong line. A regression test
-drives a six-window transcript through a mocked compliant model and asserts
-the last window's id survives into the merged minutes.
+**Decision.** Audio above the STT request limit is split near silence, with offsets
+carried into the final word timestamps. Long transcripts are divided only at
+sentence boundaries. Each window is analyzed with its real sentence IDs, then a
+reduce step merges the compact results. The merged output passes through the same
+citation and date checks as a normal meeting.
 
-## 2026-08-20: a diarized speaker change closes a sentence
+**Trade-off.** Long meetings require more calls, take longer, and are more exposed
+to provider rate limits. If the reduce input cannot fit safely, the application asks
+for a shorter recording instead of truncating content.
 
-Verified live on a real two-party call: rapid exchanges shorter than the
-0.75-second pause threshold landed in one sentence, which was then credited
-wholesale to whichever speaker held the larger overlap. A diarized turn
-change is now a hard sentence boundary beside the pause, the terminators,
-and the word and duration limits. When diarization was skipped or failed
-there are no turns, and segmentation is exactly what it was before.
+## D7. State and concurrency
 
-## 2026-08-20: interrupted jobs settle at boot
+**Context.** This assignment needs a simple one-command system, not a distributed
+job platform. Adding a database, broker, and worker pool would increase setup and
+failure modes without improving the intended single-user workflow.
 
-A state file persisted mid-run used to reload as running forever, leaving an
-endless stage spinner with no way out (observed on a real job after a dev
-restart). On registry load, an in-flight job that already stored its
-transcript becomes done with a retryable analyze error note, mirroring the
-runner's soft-fail; a job interrupted before any transcript becomes failed
-with the retry message. Deliberately no auto-resume: replaying half a run
-against half-written artifacts risks silently mixing stale and fresh output,
-and a clean retry is cheap.
+**Decision.** One Uvicorn process owns an in-memory registry and runs pipelines on
+background threads. Each meeting also persists its state and artifacts under
+`/data`. A bounded semaphore limits active pipelines, and interrupted states are
+settled on startup instead of remaining stuck as running.
 
-## 2026-08-20: minutes and task rows seek by their first cited sentence
+**Trade-off.** Plain files are easy to inspect and back up, but the HTTP service
+cannot scale horizontally in this form. A production multi-user version would move
+job state to a shared database and execution to queue workers while keeping the
+existing pipeline stages.
 
-The per-item citation chips were removed with the s-id listing because the
-chips read as a debugging surface, but that also removed the task sheet's
-click-any-item-to-jump behavior. The row itself is now the control: a topic,
-decision, directive, or task whose citation resolves seeks the player to its
-first cited sentence and highlights it exactly as a transcript row does. A
-row whose citations do not resolve gets none of the button affordances, so a
-dead row is visibly plain rather than silently ignoring clicks.
+## D8. Web and API deployment
 
-## 2026-08-21: the reduce reply is anchored and key-repaired, never guessed
+**Context.** The React application and Python pipeline have different build and
+runtime needs, while the user should still open one address and avoid cross-origin
+setup.
 
-On long meetings the reduce call occasionally returned JSON the schema
-rejected: uppercase field names, observed live as four attempts before a
-valid reply on a 37.5-minute recording. Root cause: the reduce prompt was the
-only extraction prompt that never showed the JSON schema, while its input
-blocks are labeled with uppercase markers (TITLE, TOPIC, DECISION), so the
-model mirrored the only field names it ever saw. Two changes, both
-deterministic. First, the reduce prompt now carries the same schema example
-as the extraction prompt plus an explicit rule that the uppercase markers
-label the input and are never JSON keys; the reduce token budget was
-re-derived for the larger prompt (overhead 1360 to 1740, budget 6820 to
-6440). Second, a key-case repair runs before every validation: a key whose
-lowercase form is a known schema field is renamed, only when the exact field
-is not already present, and values are never touched, so a reply that was
-correct apart from key casing passes on the first call instead of spending
-the single correction retry. The transcript was never affected by this
-failure; only the extracted minutes were.
+**Decision.** The monorepo keeps a feature-based FastAPI package and a feature-based
+React/TanStack Start package. Caddy exposes port `8100`, routes `/api/*` to FastAPI,
+and routes the remaining requests to the web service. Docker Compose starts the
+complete topology. CORS is disabled by default because production traffic is
+same-origin.
 
-## 2026-08-21: one uvicorn worker, background threads, JSON on disk
+**Trade-off.** Three containers are slightly heavier than serving static files from
+Python, but they keep frontend and backend builds independent and make the routing
+boundary explicit.
 
-Recorded late because it is the most likely question about this architecture:
-where is the database, the queue, the second worker? Nowhere, on purpose.
-Mahdar is sized as a single-meeting tool: one person records one meeting and
-reads one set of minutes, so concurrency is an occasional overlap, not a load
-profile. Job state lives in an in-process registry with the pipeline on
-background threads, and every meeting persists as JSON files under /data, so
-uvicorn must run exactly one worker: a second process would hold a second
-registry and the two would race on the same state files. What a database and
-a queue would normally buy is covered at this scale by cheaper mechanisms
-already in place: crash recovery by the boot settle (an interrupted job
-reloads as failed or retryable, never as a zombie), transient failures by the
-bounded retry helpers, and inspectability by the state being plain JSON a
-person can read and back up with cp. Redis, Celery, or a SQL server would
-each add one more stateful service to the one-command compose file and an
-operational surface this scope does not need. If this were productized for
-real concurrency, the cut line is already drawn: job state moves from the
-in-process registry to a shared store, stage execution moves from threads to
-queue workers, and the HTTP tier then scales horizontally behind them. The
-stages already communicate only through persisted artifacts (state.json,
-words.json, turns.json), so that migration replaces the registry, not the
-pipeline.
+## D9. Failure handling
 
-## 2026-08-21: model selection: what shipped and what was scouted
+**Context.** Audio processing and model APIs fail in different ways: invalid media,
+rate limits, missing keys, unavailable models, malformed JSON, and interrupted
+jobs. A generic server error gives the user no useful next step.
 
-Groq's whisper-large-v3 stays the shipped transcription default for two
-concrete reasons: an evaluator can create a free key in minutes and run the
-whole pipeline the same day, and the API returns word-level timestamps, which
-sentence-level seek, citation grounding, and the silence filter are all built
-on; an STT service returning plain text would disable all three. During
-research, CohereLabs/cohere-transcribe-arabic-07-2026, an Arabic-specialized
-STT model released in July 2026, was evaluated on the HUMAIN Fuse sovereign
-platform. It was not integrated into this codebase, and nothing here depends
-on it. The provider factory is the designed upgrade seam for that class of
-deployment: a closed government environment would put a sovereign router
-(Fuse or similar) or the fully offline path (see the 2026-08-18 offline
-entry) behind the same two provider interfaces, without touching the
-pipeline.
+**Decision.** Uploads are limited by size, extension, and file signature. Expensive
+routes have rate limits and active-job limits. Provider calls use bounded retries
+and respect `Retry-After`. LLM responses get one corrective attempt when the schema
+or Arabic-output contract fails. Errors exposed to the UI use stable codes and
+Arabic messages. Analysis failures are soft failures, leaving the transcript and
+speaker result available for review and retry.
 
-## 2026-08-21: the reduce step can still return an empty reply
+**Trade-off.** Bounded retries may stop before a temporary provider problem clears,
+but they keep request cost and waiting time predictable. Preserving partial output
+is more useful than failing the complete meeting after transcription succeeds.
 
-The uppercase-keys reduce failure was fixed deterministically (schema anchor
-plus key-case repair, above). A second failure mode remains open: on long
-meetings, smaller reasoning models can spend the whole completion budget
-(MAX_COMPLETION_TOKENS, 4000) on internal reasoning and return an empty
-reduce reply. The extractor asks for include_reasoning=false, but models
-that reason internally consume those tokens either way, and an empty reply
-gives the key-case repair and the corrective retry nothing to work on. This
-is mitigated, not eliminated: the completion budget carries headroom well
-past any minutes object seen in testing, the analyze stage soft-fails so the
-transcript and speakers stay intact and the job stays done, and re-analysis
-is one click in the UI. Eliminating it outright would mean raising the
-completion budget against the free-tier tokens-per-minute window or pinning
-the reduce call to a larger model; both cost more than the retry does.
-Recorded so the empty-reply path is not mistaken for a regression of the
-fixed one.
+## D10. Reviewed exports
 
-## 2026-08-22: monorepo on Turborepo, bun for JS, uv for Python
+**Context.** The exported document should match what the user reviewed, including
+renamed speakers and normalized dates, and it must render correctly in Arabic.
 
-The refactor replaces the single backend + hand-rolled frontend with two typed
-packages under apps/: api (FastAPI on uv) and web (TanStack Start on bun) — a
-single root lockfile, one test runner (`turbo run test`), and one tree-wide
-`docker compose up` via the Caddy proxy. The Python tree moved from
-`backend/app/{core,api,providers,processing}` to a feature-first
-`apps/api/app/{features/{meetings,transcription,diarization,analysis,export},shared,pipeline,api}`.
-The uv lock pins torch 2.11.0, torchaudio 2.11.0, and torchcodec 0.13.0.
-Linux resolves all three from the official CPU wheel index. onnxruntime stays
-a Linux-only override because faster-whisper imports it lazily and macOS 12
-lacks the wheel.
+**Decision.** JSON and DOCX are generated from the persisted meeting model only
+after processing completes. DOCX generation explicitly applies RTL paragraph,
+table, and run settings and includes the transcript. Renaming a speaker triggers
+minutes re-analysis before exports become available again.
 
-## 2026-08-22: Phase B hardening
-
-- Slowapi limits per route (upload 3/min·20/h, analyze 5/min·30/h,
-  status polls 120/min, renames 30/min, docx 10/min, json/audio 30/min);
-  health stays exempt.
-- Container sniffing on the first chunk (WebM EBML, OggS, RIFF/WAVE, ID3,
-  MP3 frame-sync, ftyp) rejects a mislabeled binary earlier than ffmpeg.
-- The pipeline runs through a `BoundedSemaphore(max_active_jobs)`; one more
-  upload while busy gets 503 + Retry-After: 30 + Arabic copy. Production
-  default is 3, tests raise to 8 via the MAX_ACTIVE_JOBS env var.
-- CORS is opt-in via CORS_ORIGINS; the production deployment is single-origin
-  behind Caddy, so the default is empty.
-
-## 2026-08-22: single-origin via Caddy in front of api and web
-
-The old app served the static frontend from the same Starlette process;
-that made a /api/* prefix and a /api/health check easy but baked the React
-app into the Python image. The new layout runs Caddy on the public :8100,
-serving /api/* to `api:8000` and everything else to `web:3000`. Dev
-mirrors this through apps/web's own server splat route (`/api/$`) that
-proxies /api/* to http://localhost:8100 — TanStack Start's vite dev server
-proxy does not honor the appbar catch-all, so the in-app route is the
-reliable path (verified across Start releases as of 2026-08-22).
-
-## 2026-08-22: tanstack start pinned to 1.168.48 with vite 7
-
-`@tanstack/react-start@1.168.48` + `@tanstack/react-router@1.170.31` after
-the 2026-05 supply-chain advisory (1.167.68/1.167.71 were withdrawn) and the
-vite-8 SSR registration regression (issue TanStack/router#7614). Bun is
-1.3.14 (not 1.4 — lockfile-v2 hash compatibility with turbo prune).
-
-## 2026-08-22: shadcn on radix primitives, RTL via DirectionProvider
-
-shadcn 4.19 defaults to Base UI primitives since 2026-07; this repo pins
-radix to keep the documented `@radix-ui/react-direction` DirectionProvider
-and because the Figma-derived design tokens map 1:1 onto the legacy
-styles.css variants. `html dir="rtl" lang="ar"` from the root route;
-logical Tailwind utilities (ps/pe/ms/me) for all spacing.
-
-## 2026-08-22: APIs keep the existing error shape
-
-Every error body is {"error_ar", "code", "detail"} where detail mirrors the
-Arabic string (older clients read it). New keys added in Phase B:
-`upload.bad_signature`, `rate.limited`, `server.busy`.
+**Trade-off.** The export code is more detailed than a plain document template, but
+the result is reproducible and does not depend on office software being installed
+on the server.

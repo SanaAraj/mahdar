@@ -1,159 +1,200 @@
-# محضر (Mahdar)
+<div align="center">
+  <h1>محضر | Mahdar</h1>
+  <p><strong>Arabic meetings, from recording to structured minutes.</strong></p>
+  <p>
+    Record from the browser or upload an existing file, then review the transcript,
+    speakers, decisions, directives, and follow-up tasks in one Arabic RTL workspace.
+  </p>
+  <p>
+    <a href="#run-with-docker">Run with Docker</a> ·
+    <a href="#how-it-works">Architecture</a> ·
+    <a href="#ready-made-and-built-in-this-project">Attribution</a> ·
+    <a href="docs/DECISIONS.md">Technical decisions</a>
+  </p>
+</div>
 
-A small app that turns a recorded meeting into a usable Arabic minutes
-document. Press record, speak, stop — محضر gives you back a timestamped
-transcript, per-speaker labels you can edit, and a clean minutes page with
-every topic, decision, directive, and task, each one linked to the exact
-sentences it was taken from.
+<p align="center">
+  <img src="docs/assets/mahdar-workspace.jpg" alt="Mahdar Arabic meeting workspace" width="100%">
+</p>
 
-No dashboards. No accounts. One page, one job, your data on your own machine.
+## Run with Docker
 
-## What it does
+### Requirements
 
-- **Record in the browser or upload a file** (webm, ogg, wav, mp3, m4a, mp4)
-- **Live capture** with a volume meter, pause / resume, and a timer, plus
-  drag-and-drop and a progress bar
-- **Sentence-level transcript** with timestamps; clicking a line seeks the
-  audio to that exact moment
-- **Speaker separation** with editable names; saving a name automatically
-  refreshes the minutes before exports are available again
-- **Minutes extraction** in Arabic: عنوان الاجتماع, المواضيع, القرارات,
-  التوجيهات, and a tasks table with owner, Arabic priority, and the deadline
-  normalized to Hijri *and* Gregorian dates
-- **Export** as a well-formed DOCX (proper right-to-left) or JSON
-- Designed for Arabic from the start: the whole interface is RTL, written in
-  Arabic, and the processing pipeline treats Arabic as the source of truth
+- Docker with Compose
+- A Groq API key
+- A Hugging Face read token with access to
+  `pyannote/speaker-diarization-community-1` for speaker separation
 
-### If you prefer to stay offline
-
-Set `STT_PROVIDER=local` and `LLM_PROVIDER=local` in `.env` and run
-`docker compose --profile local up`. محضر then transcribes with
-faster-whisper and extracts minutes with a local Ollama model, with no
-outbound network calls at all. Cloud remains the default (Groq free tier) for
-speed; switch per environment, not per project.
-
-## Run
+### Start
 
 ```bash
-cp .env.example .env        # add GROQ_API_KEY and HF_TOKEN
-docker compose up --build   # one command starts the complete app on port 8100
+cp .env.example .env
 ```
 
-Open http://localhost:8100. Press record, upload, get your minutes.
+Add `GROQ_API_KEY` and `HF_TOKEN` to `.env`, then run:
 
-## Why it's built this way
-
-A few deliberate choices show up in the code as hard rules:
-
-- **Verified by construction.** Every extracted item in the minutes has to
-  cite the exact sentences it is based on; items without a clean citation
-  are dropped so the document never invents details.
-- **Provider-flexible, cost-transparent.** STT and the minutes LLM swap
-  between Groq and local services through one interface. The prompt asks the
-  model for Arabic fields inside an English contract, which survived a model
-  swap in June 2026 without a single regression.
-- **One workflow, three containers.** Caddy exposes one origin, React serves
-  the page, and one FastAPI worker owns the job registry. State is one JSON
-  file per meeting on a named Docker volume. No Redis, Celery, or SQL server.
-- **Resilient at the seams.** Long recordings are split at silence points so
-  a 25 MB provider cap never becomes your problem; LLM responses that omit
-  the schema are re-asked; empty audio, full queues, and missing keys all
-  surface as clear Arabic messages rather than stack traces.
-
-## Stack
-
-- **Web** — React 19 + TanStack Start on Bun, Tailwind CSS v4, shadcn over
-  Radix primitives. Fully RTL, fully Arabic, light only.
-- **API** — FastAPI + uv (Python 3.12), ffmpeg for audio work, pyannote for
-  diarization, python-docx for the Word export, slowapi on the upload and
-  analysis endpoints.
-- **Infra** — Turborepo at the root, one compose file that brings up Caddy
-  (single origin on :8100), the API, and the web app. An optional Ollama
-  service handles fully-offline mode.
-
-Layout is accidentally also the documentation:
-
-```
-apps/api   Python, feature-first packages (meetings / transcription /
-           diarization / analysis / export)
-apps/web   React, routes + per-feature components + hooks
-docs/      Dated decision log — the why, not the what
-samples/   Small real Arabic test clips
+```bash
+docker compose up --build
 ```
 
-## Development
+Open [http://localhost:8100](http://localhost:8100). No database setup, migration,
+or manual service startup is required.
+
+## What the app delivers
+
+- Browser recording with a timer, volume level, pause, resume, and upload progress
+- Upload support for WebM, OGG, WAV, MP3, M4A, and MP4 files
+- Arabic transcription with sentence-level timestamps
+- Speaker separation with editable speaker names
+- Audio playback and seeking from transcript sentences and minutes items
+- Arabic meeting title, topics, decisions, directives, and follow-up tasks
+- Task owner, priority, and Gregorian and Hijri due dates when a date is stated
+- DOCX and JSON exports
+
+## How it works
+
+```text
+Browser
+  |
+  v
+Caddy :8100
+  |-- /api/*  --> FastAPI
+  `-- /*      --> React + TanStack Start
+                    |
+                    v
+        convert audio with ffmpeg
+                    |
+          +---------+---------+
+          |                   |
+       transcribe          diarize
+          |                   |
+          +---------+---------+
+                    |
+        assemble timestamped sentences
+                    |
+       extract and verify meeting minutes
+                    |
+          persist files under /data
+```
+
+Transcription and diarization run in parallel. Speaker separation is optional: if
+the pyannote model or token is unavailable, the transcript and minutes can still
+complete without speaker labels. Analysis is also recoverable, so a failed minutes
+request does not remove a completed transcript.
+
+## Providers
+
+The submitted and manually tested path uses Groq for transcription and minutes
+extraction:
+
+| Stage | Default | Local alternative |
+| --- | --- | --- |
+| Transcription | Groq `whisper-large-v3` | faster-whisper `large-v3-turbo` |
+| Speaker separation | pyannote `community-1` on CPU | Same |
+| Minutes extraction | Groq `openai/gpt-oss-120b` | Configurable Ollama model; default `qwen3:8b` |
+
+> **Local provider status:** The faster-whisper and Ollama integrations are
+> implemented and covered by mocked unit tests, but the complete local path has not
+> been run end to end with real model inference. It is an optional extension path,
+> not part of the validated submission flow.
+
+To use the local STT and LLM providers, set these values in `.env`:
+
+```dotenv
+STT_PROVIDER=local
+LLM_PROVIDER=local
+```
+
+Then start the local profile:
+
+```bash
+docker compose --profile local up --build
+```
+
+The local path is designed as a CPU fallback and downloads model weights on first
+use. Once those weights are cached in the Docker volumes, it is intended to run
+without sending the recording or transcript to Groq. Its startup behavior,
+performance, and output quality still need to be verified with a real end-to-end
+run.
+
+## Ready-made and built in this project
+
+The first version was developed locally before its Git history was created. No
+complete GitHub project or prebuilt meeting-minutes application was imported.
+Open-source libraries, published models, and hosted model APIs were used as
+building blocks.
+
+| Ready-made component | What was used | What was built for Mahdar |
+| --- | --- | --- |
+| Groq, Whisper large-v3, and `gpt-oss-120b` | Hosted transcription and language-model inference | Provider clients, audio chunking, retries, prompts, schema validation, and Arabic error handling |
+| pyannote `community-1` | Speaker diarization model and runtime | Audio loading, parallel execution, turn-to-sentence assignment, speaker ordering, renaming, and re-analysis |
+| faster-whisper, Ollama, and Qwen | Local inference engines and published models | An optional provider path following the same pipeline contract; mocked in tests but not run with real local inference |
+| FastAPI, Pydantic, Uvicorn, HTTPX, and SlowAPI | API, validation, HTTP, and rate-limit primitives | Meeting endpoints, upload checks, job lifecycle, persisted state, recovery, and exports |
+| React, TanStack, Tailwind CSS, Radix, shadcn-style primitives, and Lucide | Web framework, routing, styling primitives, and icons | The RTL workflow, recording experience, processing states, audio player, transcript, speaker, minutes, and task views |
+| ffmpeg and ffprobe | Audio conversion, probing, and splitting | The conversion rules, silence-aware chunking, timestamp offsets, and media workflow |
+| python-docx and hijridate | Document and calendar primitives | RTL DOCX layout, export structure, and deterministic date normalization |
+| Docker Compose, Caddy, Bun, Turborepo, and uv | Runtime, proxy, package, and build tooling | The one-command topology, container configuration, and repository workflow |
+
+No model was trained or fine-tuned as part of this project. The product-specific
+work is the end-to-end pipeline around these components: recording and validation,
+sentence assembly, speaker attribution, evidence-linked minutes, date handling,
+long-meeting processing, playback, exports, and the Arabic user experience.
+Resolved dependency versions are locked in `uv.lock` and `bun.lock`; direct
+requirements and pinned container images are recorded in the manifests and Compose
+file.
+
+## Data and privacy
+
+With the default providers, audio is sent to Groq for transcription and transcript
+context is sent to Groq for minutes extraction. Diarization runs locally inside the
+API container. Meeting artifacts are stored in the `mahdar-data` Docker volume.
+
+API keys belong only in `.env`. The repository includes a documented `.env.example`
+with empty secret values.
+
+## Verification
 
 ```bash
 bun install --frozen-lockfile
-bun run dev                 # api on :8100, web on :3000, hot reload both
 bun run lint
 bun run typecheck
 bun run test
 ```
 
-The web app at :3000 proxies `/api/*` to the api on :8100, mirroring
-production.
+The automated tests mock provider calls and cover the API, audio splitting,
+sentence assembly, speaker assignment, citations, dates, long-transcript analysis,
+exports, recovery, and the main web utilities. The Groq Docker path was also tested
+manually with real recordings. The local-provider tests use fakes and mocked HTTP
+responses; they do not prove real faster-whisper or Ollama inference.
 
-## Configuration
+Two short Arabic clips and reference transcripts are available in `samples/` for
+manual transcription checks. A real multi-speaker recording is still the best final
+check for diarization and speaker turn boundaries.
 
-`.env.example` lists every key. The two you'll usually care about:
-`GROQ_API_KEY` for the cloud path, and `HF_TOKEN` (free, read access) to
-enable speaker separation inside the local containers. The rest are sane
-defaults; see each comment for what it does.
+## Project structure
 
-## For contributors
+```text
+apps/api/    FastAPI service and the processing pipeline
+apps/web/    React application and feature-based UI
+infra/       Caddy configuration
+docs/        Technical decision record
+samples/     Arabic audio samples and reference transcripts
+```
 
-- All user-facing text is Arabic (the app is for Arabic speakers); all code
-  identifiers, log lines, comments, READMEs, DECISIONS, and commit messages
-  are English.
-- The single source of truth for Arabic copy is `apps/api/app/strings.py`
-  on the server and `apps/web/src/lib/strings.ts` on the web. No Arabic
-  string lives anywhere else.
-- Design choices are recorded one per day in `docs/DECISIONS.md`; the latest
-  entry always describes the current layout, providers, and ports.
-- Tests run the pipeline with provider calls mocked, so a network outage
-  cannot fail the automated suite.
-
-## What "good" looks like
-
-1. Record → stop → the page switches to processing, stages tick by.
-2. When done, the transcript appears; clicking a line seeks the audio.
-3. Rename "المتحدث 1" to a real name — re-analysis starts automatically.
-4. Export DOCX. Attach it to the meeting invite.
-
-## Ready-made vs built here
-
-| Ready-made component | Role |
-| --- | --- |
-| FastAPI, Starlette, uvicorn | HTTP API and runtime |
-| React, TanStack Start, TanStack Query | Browser application and server state |
-| Caddy | Single public origin and API routing |
-| ffmpeg and ffprobe | Audio conversion, probing, and splitting |
-| Whisper large-v3 through Groq | Default cloud transcription |
-| pyannote community-1 | Local speaker diarization |
-| faster-whisper and Ollama | Offline transcription and minutes fallback |
-| python-docx and hijridate | RTL Word export and Hijri conversion |
-
-Built in this repository: browser recording and upload, the processing-stage
-workflow, sentence assembly, speaker attribution and renaming, source-linked
-minutes and tasks, faithfulness guards, deterministic date normalization,
-long-recording map-reduce, Arabic error handling, audio seeking, and RTL DOCX
-generation.
+The API and web packages are organized by feature. The main technical trade-offs
+and rejected alternatives are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Known limits
 
-- Groq is the default path and sends audio and transcript context to an
-  external service. The local profile avoids outbound provider calls but is
-  slower on CPU and downloads several gigabytes of model weights on first use.
-- Speaker diarization needs a Hugging Face token with access to the gated
-  pyannote model. Without it, transcription and minutes remain available.
-- Diarization holds one decoded waveform in memory, approximately 230 MB per
-  hour of mono 16 kHz audio.
-- Arabic transcription can mishear names, dialect, or similar-sounding words.
-  The generated minutes stay grounded in the transcript and do not silently
-  correct uncertain speech.
-- The Groq free tier can rate-limit bursts. The transcript is retained and
-  analysis can be retried.
-- The local LLM produces weaker Arabic minutes than the configured Groq model,
-  especially for long or dialect-heavy meetings.
-- No demonstration video is included; it is optional in the task brief.
+- Arabic names, dialects, overlapping speech, and noisy recordings can reduce
+  transcription and speaker accuracy.
+- pyannote requires an accepted model license and a valid Hugging Face token on the
+  first download. Without them, speaker separation is skipped.
+- The local faster-whisper and Ollama path is implemented but has not been manually
+  validated end to end. It should be tested for model download, resource use,
+  processing time, and output quality before being relied on.
+- Very long meetings require more model calls and may be affected by provider rate
+  limits. The transcript remains available if minutes extraction fails.
+- The current single-worker, file-backed design is suitable for this assignment and
+  small deployments, not horizontal production scaling.
