@@ -268,3 +268,63 @@ completion budget against the free-tier tokens-per-minute window or pinning
 the reduce call to a larger model; both cost more than the retry does.
 Recorded so the empty-reply path is not mistaken for a regression of the
 fixed one.
+
+## 2026-08-22: monorepo on Turborepo, bun for JS, uv for Python
+
+The refactor replaces the single backend + hand-rolled frontend with two typed
+packages under apps/: api (FastAPI on uv) and web (TanStack Start on bun) — a
+single root lockfile, one test runner (`turbo run test`), and one tree-wide
+`docker compose up` via the Caddy proxy. The Python tree moved from
+`backend/app/{core,api,providers,processing}` to a feature-first
+`apps/api/app/{features/{meetings,transcription,diarization,analysis,export},shared,pipeline,api}`.
+The uv lock pins the existing torch 2.11.0 CPU / torchaudio 2.11.0 /
+torchcodec 0.11.1 combo exactly as it was live before the move (the
+`requirements.txt` baseline of 114 names); any small drift in
+huggingface-hub/idna/lxml/narwhals/protobuf versions reflects uv's resolver
+and is documented in the report. onnxruntime stays a linux-only override
+because faster-whisper imports it lazily and macOS 12 lacks the wheel.
+
+## 2026-08-22: Phase B hardening
+
+- Slowapi limits per route (upload 3/min·20/h, analyze 5/min·30/h,
+  status polls 120/min, renames 30/min, docx 10/min, json/audio 30/min);
+  health stays exempt.
+- Container sniffing on the first chunk (WebM EBML, OggS, RIFF/WAVE, ID3,
+  MP3 frame-sync, ftyp) rejects a mislabeled binary earlier than ffmpeg.
+- The pipeline runs through a `BoundedSemaphore(max_active_jobs)`; one more
+  upload while busy gets 503 + Retry-After: 30 + Arabic copy. Production
+  default is 3, tests raise to 8 via the MAX_ACTIVE_JOBS env var.
+- CORS is opt-in via CORS_ORIGINS; the production deployment is single-origin
+  behind Caddy, so the default is empty.
+
+## 2026-08-22: single-origin via Caddy in front of api and web
+
+The old app served the static frontend from the same Starlette process;
+that made a /api/* prefix and a /api/health check easy but baked the React
+app into the Python image. The new layout runs Caddy on the public :8100,
+serving /api/* to `api:8000` and everything else to `web:3000`. Dev
+mirrors this through apps/web's own server splat route (`/api/$`) that
+proxies /api/* to http://localhost:8100 — TanStack Start's vite dev server
+proxy does not honor the appbar catch-all, so the in-app route is the
+reliable path (verified across Start releases as of 2026-08-22).
+
+## 2026-08-22: tanstack start pinned to 1.168.48 with vite 7
+
+`@tanstack/react-start@1.168.48` + `@tanstack/react-router@1.170.31` after
+the 2026-05 supply-chain advisory (1.167.68/1.167.71 were withdrawn) and the
+vite-8 SSR registration regression (issue TanStack/router#7614). Bun is
+1.3.14 (not 1.4 — lockfile-v2 hash compatibility with turbo prune).
+
+## 2026-08-22: shadcn on radix primitives, RTL via DirectionProvider
+
+shadcn 4.19 defaults to Base UI primitives since 2026-07; this repo pins
+radix to keep the documented `@radix-ui/react-direction` DirectionProvider
+and because the Figma-derived design tokens map 1:1 onto the legacy
+styles.css variants. `html dir="rtl" lang="ar"` from the root route;
+logical Tailwind utilities (ps/pe/ms/me) for all spacing.
+
+## 2026-08-22: APIs keep the existing error shape
+
+Every error body is {"error_ar", "code", "detail"} where detail mirrors the
+Arabic string (older clients read it). New keys added in Phase B:
+`upload.bad_signature`, `rate.limited`, `server.busy`.
