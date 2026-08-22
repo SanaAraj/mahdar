@@ -1,6 +1,6 @@
 services:
   proxy:
-    image: caddy:2-alpine
+    image: caddy:2.11.4-alpine
     ports:
       - "8100:8100"
     volumes:

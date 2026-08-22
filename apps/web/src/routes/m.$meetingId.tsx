@@ -82,7 +82,12 @@ function MeetingBody({ job, onReanalyze, reanalyzePending }: MeetingBodyProps) {
             <DoneHeader job={job} onReanalyze={onReanalyze} reanalyzePending={reanalyzePending} />
             <StatsStrip job={job} />
             <AnalysisBanner job={job} onReanalyze={onReanalyze} reanalyzePending={reanalyzePending} />
-            <SpeakersBar meetingId={job.id} speakers={job.speakers} sentences={job.sentences} />
+            <SpeakersBar
+              meetingId={job.id}
+              speakers={job.speakers}
+              sentences={job.sentences}
+              onSpeakersChanged={onReanalyze}
+            />
             <PlayerConsumer job={job} />
           </>
         ) : null}
@@ -115,11 +120,11 @@ function PlayerConsumer({ job }: PlayerConsumerProps) {
   return (
     <>
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_280px]">
-        <section>
+        <section className="min-w-0">
           <h3 className="mb-3 text-lg font-semibold">{strings.transcriptHeading}</h3>
           <SentenceList job={job} onSeek={seekToSentence} />
         </section>
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           {job.analysis ? (
             <section>
               <h3 className="mb-2 text-lg font-semibold">{strings.topicsHeading}</h3>

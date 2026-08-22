@@ -4,6 +4,7 @@
   "packageManager": "bun@1.3.14",
   "workspaces": ["apps/*"],
   "scripts": {
+    "postinstall": "bun run --cwd apps/web setup",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",

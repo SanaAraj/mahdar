@@ -17,7 +17,7 @@ export function AppHeader({ actions, onNewMeeting, className }: AppHeaderProps) 
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-6 max-[620px]:items-start">
+      <div className="flex items-center justify-between gap-6 max-[620px]:flex-col max-[620px]:items-stretch">
         {onNewMeeting ? (
           <button
             type="button"
@@ -32,7 +32,7 @@ export function AppHeader({ actions, onNewMeeting, className }: AppHeaderProps) 
             <Brand />
           </Link>
         )}
-        {actions ? <div className="flex gap-2">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
     </header>
   );

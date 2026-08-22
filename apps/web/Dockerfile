@@ -3,14 +3,10 @@ FROM oven/bun:1.3.14 AS builder
 WORKDIR /repo
 
 COPY package.json bun.lock turbo.json ./
-COPY apps/web/package.json apps/web/package.json
+COPY apps/web apps/web
 COPY apps/api/package.json apps/api/package.json
 
 RUN bun install --frozen-lockfile
-
-RUN L=$(ls -d /repo/node_modules/.bun/nitro-nightly@*/node_modules) && ln -s nitro-nightly "$L/nitro"
-
-COPY apps/web apps/web
 
 RUN cd apps/web && bun run build
 

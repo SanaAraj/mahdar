@@ -15,8 +15,8 @@ No dashboards. No accounts. One page, one job, your data on your own machine.
   drag-and-drop and a progress bar
 - **Sentence-level transcript** with timestamps; clicking a line seeks the
   audio to that exact moment
-- **Speaker separation** with editable names (saved instantly) — so the
-  minutes use real names, not speaker numbers
+- **Speaker separation** with editable names; saving a name automatically
+  refreshes the minutes before exports are available again
 - **Minutes extraction** in Arabic: عنوان الاجتماع, المواضيع, القرارات,
   التوجيهات, and a tasks table with owner, Arabic priority, and the deadline
   normalized to Hijri *and* Gregorian dates
@@ -35,8 +35,8 @@ speed; switch per environment, not per project.
 ## Run
 
 ```bash
-cp .env.example .env        # add GROQ_API_KEY (console.groq.com, free)
-docker compose up           # everything comes up together on port 8100
+cp .env.example .env        # add GROQ_API_KEY and HF_TOKEN
+docker compose up --build   # one command starts the complete app on port 8100
 ```
 
 Open http://localhost:8100. Press record, upload, get your minutes.
@@ -52,8 +52,9 @@ A few deliberate choices show up in the code as hard rules:
   between Groq and local services through one interface. The prompt asks the
   model for Arabic fields inside an English contract, which survived a model
   swap in June 2026 without a single regression.
-- **One service, one process.** State is a JSON file per meeting on a named
-  Docker volume. No Redis, no Celery, no SQL server.
+- **One workflow, three containers.** Caddy exposes one origin, React serves
+  the page, and one FastAPI worker owns the job registry. State is one JSON
+  file per meeting on a named Docker volume. No Redis, Celery, or SQL server.
 - **Resilient at the seams.** Long recordings are split at silence points so
   a 25 MB provider cap never becomes your problem; LLM responses that omit
   the schema are re-asked; empty audio, full queues, and missing keys all
@@ -83,9 +84,11 @@ samples/   Small real Arabic test clips
 ## Development
 
 ```bash
-bun install
-turbo run dev               # api on :8100, web on :3000, hot reload both
-turbo run lint typecheck test   # ruff + tsc + pytest + vitest
+bun install --frozen-lockfile
+bun run dev                 # api on :8100, web on :3000, hot reload both
+bun run lint
+bun run typecheck
+bun run test
 ```
 
 The web app at :3000 proxies `/api/*` to the api on :8100, mirroring
@@ -108,12 +111,49 @@ defaults; see each comment for what it does.
   string lives anywhere else.
 - Design choices are recorded one per day in `docs/DECISIONS.md`; the latest
   entry always describes the current layout, providers, and ports.
-- Tests run the whole pipeline with the provider calls mocked, so a network
-  outage can't fail CI.
+- Tests run the pipeline with provider calls mocked, so a network outage
+  cannot fail the automated suite.
 
 ## What "good" looks like
 
 1. Record → stop → the page switches to processing, stages tick by.
 2. When done, the transcript appears; clicking a line seeks the audio.
-3. Rename "المتحدث 1" to a real name — the minutes update instantly.
+3. Rename "المتحدث 1" to a real name — re-analysis starts automatically.
 4. Export DOCX. Attach it to the meeting invite.
+
+## Ready-made vs built here
+
+| Ready-made component | Role |
+| --- | --- |
+| FastAPI, Starlette, uvicorn | HTTP API and runtime |
+| React, TanStack Start, TanStack Query | Browser application and server state |
+| Caddy | Single public origin and API routing |
+| ffmpeg and ffprobe | Audio conversion, probing, and splitting |
+| Whisper large-v3 through Groq | Default cloud transcription |
+| pyannote community-1 | Local speaker diarization |
+| faster-whisper and Ollama | Offline transcription and minutes fallback |
+| python-docx and hijridate | RTL Word export and Hijri conversion |
+
+Built in this repository: browser recording and upload, the processing-stage
+workflow, sentence assembly, speaker attribution and renaming, source-linked
+minutes and tasks, faithfulness guards, deterministic date normalization,
+long-recording map-reduce, Arabic error handling, audio seeking, and RTL DOCX
+generation.
+
+## Known limits
+
+- Groq is the default path and sends audio and transcript context to an
+  external service. The local profile avoids outbound provider calls but is
+  slower on CPU and downloads several gigabytes of model weights on first use.
+- Speaker diarization needs a Hugging Face token with access to the gated
+  pyannote model. Without it, transcription and minutes remain available.
+- Diarization holds one decoded waveform in memory, approximately 230 MB per
+  hour of mono 16 kHz audio.
+- Arabic transcription can mishear names, dialect, or similar-sounding words.
+  The generated minutes stay grounded in the transcript and do not silently
+  correct uncertain speech.
+- The Groq free tier can rate-limit bursts. The transcript is retained and
+  analysis can be retried.
+- The local LLM produces weaker Arabic minutes than the configured Groq model,
+  especially for long or dialect-heavy meetings.
+- No demonstration video is included; it is optional in the task brief.
