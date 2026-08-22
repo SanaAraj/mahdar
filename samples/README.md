@@ -1,22 +1,14 @@
-# samples/
+# عينات صوتية عربية
 
-Two short Gulf-dialect news clips ship with the repository, each beside a
-human reference transcript (`*.reference.txt`) for accuracy comparison:
+أربع عينات مختارة لاختبار التفريغ، فصل المتحدثين، والتحليل من واجهة محضر.
 
-- `news_clip_low_income.mp3` (14 s): a commentator on subsidy reform and
-  low-income households.
-- `news_clip_sports_strategy.mp3` (15 s): a commentator on team selection
-  strategy across a tournament.
+| الملف | المحتوى | المدة | المصدر والترخيص |
+|---|---|---:|---|
+| `professional_saudi_tv_discussion.mp3` | نقاش مهني سعودي متعدد المتحدثين | 1:22 دقيقة | مقتطف من برنامج «آخر الأسبوع» ضمن [SADA](https://huggingface.co/datasets/m6011/sada2022)، بترخيص CC BY-NC-SA 4.0 |
+| `real_msa_fleurs_satellite_phone.mp3` | فصحى، متحدث واحد | 15 ثانية | العينة رقم 5 من مجموعة التحقق العربية المصرية في [FLEURS](https://huggingface.co/datasets/google/fleurs/viewer/ar_eg/validation?row=5)، بترخيص CC BY 4.0 |
+| `news_clip_low_income.mp3` | مقتطف اقتصادي سعودي | 14 ثانية | عينة سابقة في المستودع؛ يتطابق محتواها مع [مقابلة رؤية السعودية 2030](https://arabic.arabianbusiness.com/politics-economics/412198)، لكن رابط الصوت الأصلي وترخيص إعادة توزيعه غير موثقين |
+| `news_clip_sports_strategy.mp3` | تحليل رياضي | 15 ثانية | عينة سابقة في المستودع؛ المصدر الأصلي وترخيص إعادة توزيعه غير موثقين |
 
-Upload either one in the running app, or export a meeting and diff the
-transcript against the reference file.
+قُصت عينتا SADA وFLEURS وطُبّع مستوى صوتهما وحُوّلتا إلى MP3 للاختبار. قبل نشر العينتين السابقتين خارج نطاق التقييم، يجب التحقق من حقوق إعادة توزيعهما.
 
-## External-only clips
-
-`samples/external/` is gitignored and never redistributed. It holds extra
-evaluation clips that must stay local: two channels of an Egyptian telephone
-conversation from the Egyptian_Arabic_Conversational_Speech_Corpus (licensed
-for personal, non-commercial use; no distribution), and one recorded online
-meeting trimmed to a 90-second highlight. Drop any extra `webm`, `ogg`,
-`wav`, `mp3`, `m4a`, or `mp4` clip in there to try it locally; keep clips
-short enough to fit within the LLM prompt budget.
+ارفع أي ملف من الصفحة الرئيسية لاختباره.
