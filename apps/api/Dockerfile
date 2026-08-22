@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.9.30-python3.12-bookworm-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
@@ -8,7 +8,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY app ./app
 RUN uv sync --frozen --no-dev
 
-FROM python:3.12-slim
+FROM python:3.12.12-slim-bookworm
 
 # ffmpeg: audio conversion plus the libav shared libraries torchcodec needs to
 # decode inside pyannote. curl: the healthcheck. libgomp1: torch's OpenMP runtime.
