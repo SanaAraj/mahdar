@@ -13,6 +13,7 @@ export interface SpeakersBarProps {
   sentences?: Sentence[];
   player?: PlayerApi | null;
   onSpeakerSelected?: (speaker: Speaker) => void;
+  onSpeakersChanged?: () => void;
 }
 
 export function SpeakersBar({
@@ -21,6 +22,7 @@ export function SpeakersBar({
   sentences,
   player,
   onSpeakerSelected,
+  onSpeakersChanged,
 }: SpeakersBarProps) {
   const renameMutation = useRenameSpeakers(meetingId);
   const { previewingId, playSample } = useSpeakerSample({ meetingId, player });
@@ -49,6 +51,7 @@ export function SpeakersBar({
       onSuccess: () => {
         setRenameErrorAr(null);
         setErrorSpeakerId(null);
+        onSpeakersChanged?.();
       },
     });
   };
