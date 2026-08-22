@@ -7,7 +7,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".output/**", "dist/**"]
+      "outputs": [".output/**", "dist/**", ".venv/lib/**/site-packages/uvicorn/__init__.py"]
     },
     "lint": {},
     "format": {
