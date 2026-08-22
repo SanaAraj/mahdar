@@ -22,6 +22,6 @@ ENV PORT=3000 NODE_ENV=production
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD bun -e "const r=await fetch('http://localhost:3000');if(!r.ok)process.exit(1)"
+    CMD bun -e "const r=await fetch('http://localhost:3000');process.exit(r.ok?0:1)"
 
 CMD ["bun", ".output/server/index.mjs"]

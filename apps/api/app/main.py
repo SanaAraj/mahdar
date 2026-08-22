@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=strings.resolve("app.title"), docs_url=None, redoc_url=None)
     registry = JobRegistry(settings.data_dir)
     diarizer = LocalDiarizer(settings) if settings.hf_token else None
-    factory._validate_providers(settings)
+    factory.validate_providers(settings)
     app.state.settings = settings
     app.state.registry = registry
     app.state.pipeline = Pipeline(
@@ -89,7 +89,7 @@ def _install_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
-        body = _error_payload("speaker.bad_body")
+        body = _error_payload("request.invalid")
         body["detail"] = body["error_ar"]
         return JSONResponse(status_code=422, content=body)
 

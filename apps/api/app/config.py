@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import constants
@@ -27,10 +28,10 @@ class Settings(BaseSettings):
     local_llm_model: str = constants.DEFAULT_LOCAL_LLM_MODEL
     ollama_url: str = constants.DEFAULT_OLLAMA_URL
     hf_token: str = ""
-    max_upload_mb: int = 500
+    max_upload_mb: int = Field(default=500, ge=1)
     data_dir: Path = _APP_DIR.parent.parent / "data"
     rate_limit_enabled: bool = True
-    max_active_jobs: int = 3
+    max_active_jobs: int = Field(default=3, ge=1)
     cors_origins: str = ""
 
     @property

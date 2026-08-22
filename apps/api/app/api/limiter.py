@@ -1,9 +1,16 @@
+from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import Settings
 
-limiter = Limiter(key_func=get_remote_address)
+
+def client_address(request: Request) -> str:
+    forwarded = request.headers.get("x-mahdar-client-ip", "").strip()
+    return forwarded or get_remote_address(request)
+
+
+limiter = Limiter(key_func=client_address)
 
 
 def configure_limiter(settings: Settings) -> Limiter:

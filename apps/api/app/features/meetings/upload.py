@@ -15,21 +15,22 @@ def extension_of(filename: str) -> str:
 
 
 async def save_upload(audio: UploadFile, dst: Path, max_bytes: int) -> int:
-
-    size = 0
-    with dst.open("wb") as fh:
-        first = True
-        while chunk := await audio.read(constants.UPLOAD_CHUNK_BYTES):
-            if first:
-                _reject_not_audio(chunk, dst, fh)
-                first = False
-            size += len(chunk)
-            if size > max_bytes:
-                _abort(dst, fh)
-                raise UploadError("upload.file_too_large", f"{size} bytes > {max_bytes}")
-            fh.write(chunk)
-    await audio.close()
-    return size
+    try:
+        size = 0
+        with dst.open("wb") as fh:
+            first = True
+            while chunk := await audio.read(constants.UPLOAD_CHUNK_BYTES):
+                if first:
+                    _reject_not_audio(chunk, dst, fh)
+                    first = False
+                size += len(chunk)
+                if size > max_bytes:
+                    _abort(dst, fh)
+                    raise UploadError("upload.file_too_large", f"{size} bytes > {max_bytes}")
+                fh.write(chunk)
+        return size
+    finally:
+        await audio.close()
 
 
 def _reject_not_audio(header: bytes, dst: Path, fh: BinaryIO) -> None:

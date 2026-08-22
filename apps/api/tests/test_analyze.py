@@ -9,13 +9,10 @@ from pydantic import ValidationError
 from app import constants
 from app.config import Settings
 from app.features.analysis import prompts
-from app.features.analysis.llm_groq import (
-    GroqMinutesExtractor,
-    _has_arabic_output,
-    _json_object,
-    strip_reasoning,
-)
-from app.features.analysis.llm_parse import normalize_schema_keys
+from app.features.analysis.llm_groq import GroqMinutesExtractor
+from app.features.analysis.llm_parse import has_arabic_output as _has_arabic_output
+from app.features.analysis.llm_parse import json_object as _json_object
+from app.features.analysis.llm_parse import normalize_schema_keys, strip_reasoning
 from app.shared.errors import AnalysisError
 from app.shared.models import Analysis, MeetingMeta, Sentence, Speaker, Topic
 
@@ -66,7 +63,7 @@ def _models_payload(*ids: str) -> dict:
 def _reset_llm_caches(monkeypatch):
 
     monkeypatch.setattr("app.features.analysis.llm_preflight._models_cache", None)
-    monkeypatch.setattr("app.features.analysis.llm_groq._include_reasoning_supported", True)
+    monkeypatch.setattr("app.features.analysis.llm_groq._reasoning_support.enabled", True)
     monkeypatch.setattr(constants, "HTTP_JITTER_S", 0)
     yield
 
@@ -346,6 +343,19 @@ def test_include_reasoning_is_dropped_and_retried_on_rejection():
     )
     result = GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert result.title == "متابعة خطة العمل"
+    assert len(route.calls) == 2
+    assert "include_reasoning" not in json.loads(route.calls[1].request.content)
+
+
+@respx.mock
+def test_repeated_reasoning_rejection_stops_after_one_retry():
+    _ready_models(constants.DEFAULT_LLM_MODEL)
+    route = _ready_posts(
+        httpx.Response(400, text='{"error":"unknown field include_reasoning"}'),
+        httpx.Response(400, text='{"error":"include_reasoning is unsupported"}'),
+    )
+    with pytest.raises(AnalysisError):
+        GroqMinutesExtractor(_settings()).extract(META, SENTENCES, SPEAKERS)
     assert len(route.calls) == 2
     assert "include_reasoning" not in json.loads(route.calls[1].request.content)
 

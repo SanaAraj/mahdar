@@ -10,7 +10,7 @@ from app.features.export.docx_primitives import (
     rtl_paragraph,
     setup_styles,
 )
-from app.shared.models import ExportMeeting, Sentence, TaskItem
+from app.shared.models import ExportMeeting, ExportMeta, Sentence, TaskItem, Topic
 
 __all__ = ["build", "rtl_paragraph"]
 
@@ -56,7 +56,7 @@ def _meta(doc: DocumentObject, meeting: ExportMeeting) -> None:
         rtl_paragraph(doc, line, style_name="meta")
 
 
-def _date_line(meta) -> str:
+def _date_line(meta: ExportMeta) -> str:
     parts = []
     if meta.date_gregorian:
         parts.append(f"{strings.resolve('export.date_gregorian')}: {meta.date_gregorian}")
@@ -67,6 +67,8 @@ def _date_line(meta) -> str:
 
 def _analysis_sections(doc: DocumentObject, meeting: ExportMeeting) -> None:
     analysis = meeting.analysis
+    if analysis is None:
+        return
     _topics(doc, analysis.topics)
     _string_list(
         doc, "export.decisions", [d.text for d in analysis.decisions], "export.decisions_empty"
@@ -80,7 +82,7 @@ def _analysis_sections(doc: DocumentObject, meeting: ExportMeeting) -> None:
     _tasks(doc, analysis.tasks)
 
 
-def _topics(doc: DocumentObject, topics: list) -> None:
+def _topics(doc: DocumentObject, topics: list[Topic]) -> None:
     rtl_paragraph(doc, strings.resolve("export.topics"), style_name="heading")
     if not topics:
         rtl_paragraph(doc, strings.resolve("export.topics_empty"), style_name="body")
@@ -153,5 +155,6 @@ def _transcript(doc: DocumentObject, meeting: ExportMeeting) -> None:
 
 
 def _transcript_line(sentence: Sentence, labels: dict[str, str]) -> str:
-    speaker = labels.get(sentence.speaker) or strings.resolve("export.speaker_unknown")
+    speaker = labels.get(sentence.speaker) if sentence.speaker is not None else None
+    speaker = speaker or strings.resolve("export.speaker_unknown")
     return f"[{format_clock(sentence.start)}] {speaker}: {sentence.text}"

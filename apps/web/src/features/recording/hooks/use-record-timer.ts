@@ -15,6 +15,9 @@ export interface UseRecordTimerResult {
 export function useRecordTimer({ running, paused }: UseRecordTimerOptions): UseRecordTimerResult {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const intervalRef = useRef<number | null>(null);
+  const accumulatedMsRef = useRef(0);
+  const startedAtRef = useRef<number | null>(null);
+  const wasRunningRef = useRef(false);
 
   const clear = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -24,20 +27,43 @@ export function useRecordTimer({ running, paused }: UseRecordTimerOptions): UseR
   }, []);
 
   const reset = useCallback(() => {
+    accumulatedMsRef.current = 0;
+    startedAtRef.current = null;
     setElapsedSeconds(0);
   }, []);
 
   useEffect(() => {
+    if (running && !wasRunningRef.current) reset();
+    wasRunningRef.current = running;
     if (!running) {
       clear();
+      startedAtRef.current = null;
       return;
     }
-    setElapsedSeconds(0);
+
+    if (paused) {
+      if (startedAtRef.current !== null) {
+        accumulatedMsRef.current += Date.now() - startedAtRef.current;
+        startedAtRef.current = null;
+      }
+      clear();
+      setElapsedSeconds(Math.floor(accumulatedMsRef.current / 1000));
+      return;
+    }
+
+    startedAtRef.current = Date.now();
     intervalRef.current = window.setInterval(() => {
-      if (!paused) setElapsedSeconds((s) => s + 1);
+      const activeMs = startedAtRef.current === null ? 0 : Date.now() - startedAtRef.current;
+      setElapsedSeconds(Math.floor((accumulatedMsRef.current + activeMs) / 1000));
     }, TIMER_TICK_MS);
-    return clear;
-  }, [running, paused, clear]);
+    return () => {
+      clear();
+      if (startedAtRef.current !== null) {
+        accumulatedMsRef.current += Date.now() - startedAtRef.current;
+        startedAtRef.current = null;
+      }
+    };
+  }, [running, paused, clear, reset]);
 
   return { elapsedSeconds, reset };
 }

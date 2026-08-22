@@ -66,9 +66,6 @@ class Speaker(BaseModel):
 class SegmentCited(BaseModel):
     segment_ids: list[str] = Field(default_factory=list)
 
-    def cited_ids(self) -> list[str]:
-        return list(self.segment_ids)
-
 
 class Topic(SegmentCited):
     title: str

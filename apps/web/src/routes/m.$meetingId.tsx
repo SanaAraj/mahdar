@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import * as z from "zod";
 
 import { strings } from "@/lib/strings";
 import { useMeetingJob } from "@/features/meeting/hooks/use-meeting-job";
@@ -118,15 +119,15 @@ interface CompletedMeetingProps {
 
 function CompletedMeeting({ job, onReanalyze, reanalyzePending }: CompletedMeetingProps) {
   const player = usePlayer();
-  let activeSentenceId: string | undefined;
-  for (const sentence of job.sentences) {
-    if (player.currentTime >= sentence.start) activeSentenceId = sentence.id;
-    else break;
-  }
-  const startSeconds = job.sentences.reduce<Record<string, number>>((acc, s) => {
-    acc[s.id] = s.start;
-    return acc;
-  }, {});
+  const activeSentenceId = activeSentenceAt(job.sentences, player.currentTime)?.id;
+  const startSeconds = useMemo(
+    () =>
+      job.sentences.reduce<Record<string, number>>((acc, sentence) => {
+        acc[sentence.id] = sentence.start;
+        return acc;
+      }, {}),
+    [job.sentences],
+  );
   return (
     <main className="min-h-screen pb-16">
       <div className="mx-auto max-w-[1180px] px-4 py-3 sm:px-6 lg:px-8">
@@ -186,4 +187,21 @@ function CompletedMeeting({ job, onReanalyze, reanalyzePending }: CompletedMeeti
       </div>
     </main>
   );
+}
+
+function activeSentenceAt(sentences: MeetingJob["sentences"], currentTime: number) {
+  let low = 0;
+  let high = sentences.length - 1;
+  let active: MeetingJob["sentences"][number] | undefined;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const sentence = sentences[middle];
+    if (sentence.start <= currentTime) {
+      active = sentence;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return active;
 }

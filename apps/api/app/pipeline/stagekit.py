@@ -1,12 +1,14 @@
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 from app.shared.models import JobStatus
 
 
 class JobLogger(logging.LoggerAdapter):
     def process(self, msg: str, kwargs) -> tuple[str, dict]:
-        return f"job {self.extra['job_id']} {msg}", kwargs
+        extra = self.extra or {}
+        return f"job {cast(str, extra.get('job_id'))} {msg}", kwargs
 
 
 def job_log(logger: logging.Logger, job_id: str) -> JobLogger:

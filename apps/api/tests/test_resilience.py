@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -29,7 +30,8 @@ WAIT_TIMEOUT_S = 15.0
 
 @pytest.fixture
 def near_silence_wav(tmp_path: Path) -> Path:
-
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg is required for audio integration tests")
     path = tmp_path / "silence.wav"
     subprocess.run(
         [
@@ -162,6 +164,17 @@ def _write_state(tmp_path: Path, job: MeetingJob) -> Path:
     path = job_dir / "state.json"
     path.write_text(json.dumps(job.model_dump(mode="json"), ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def test_registry_get_returns_an_isolated_snapshot(tmp_path: Path):
+    registry = JobRegistry(tmp_path)
+    registry.create("abcabcabcabc")
+    snapshot = registry.get("abcabcabcabc")
+    assert snapshot is not None
+    snapshot.status = JobStatus.DONE
+    fresh = registry.get("abcabcabcabc")
+    assert fresh is not None
+    assert fresh.status is JobStatus.RECEIVED
 
 
 def test_interrupted_job_reloads_as_failed_not_spinning(tmp_path: Path):

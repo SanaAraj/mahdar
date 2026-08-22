@@ -24,8 +24,6 @@ async def create_meeting(
 ) -> dict[str, str]:
     registry = registry_of(request)
     pipeline = pipeline_of(request)
-    if not pipeline.has_capacity():
-        raise MessageError(503, "server.busy")
     max_bytes = request.app.state.settings.max_upload_bytes
     extension = extension_of(audio.filename or "")
     if extension not in constants.ALLOWED_EXTENSIONS:
@@ -37,13 +35,15 @@ async def create_meeting(
     try:
         size = await save_upload(audio, original, max_bytes)
     except UploadError as exc:
+        shutil.rmtree(job_dir, ignore_errors=True)
         status = 413 if exc.message_key == "upload.file_too_large" else 415
         raise MessageError(status, exc.message_key) from None
     if size == 0:
-        original.unlink(missing_ok=True)
+        shutil.rmtree(job_dir, ignore_errors=True)
         raise MessageError(422, "audio.corrupt")
     registry.create(job_id)
     if not pipeline.start(job_id):
+        registry.delete(job_id)
         shutil.rmtree(job_dir, ignore_errors=True)
         raise MessageError(503, "server.busy")
     return {"id": job_id}
@@ -71,4 +71,7 @@ def update_speakers(request: Request, job_id: str, body: SpeakersUpdate) -> list
     job = get_job(request, job_id)
     mapping = validated_mapping(body.speakers, job)
     registry_of(request).rename_speakers(job.id, mapping)
-    return registry_of(request).get(job.id).speakers
+    updated = registry_of(request).get(job.id)
+    if updated is None:
+        raise MessageError(404, "job.not_found")
+    return updated.speakers

@@ -37,7 +37,6 @@ MAX_COMPLETION_TOKENS: int = 4000
 
 UPLOAD_CHUNK_BYTES: int = BYTES_PER_MB
 ALLOWED_EXTENSIONS: frozenset[str] = frozenset({"webm", "ogg", "wav", "mp3", "m4a", "mp4"})
-PREVIEW_BYTES_PER_SECOND: int = 8000
 AUDIO_HEADER_BYTES: int = 64
 
 
@@ -117,6 +116,3 @@ INCLUDE_TRANSCRIPT_IN_DOCX: bool = True
 DOCX_FILENAME_TEMPLATE: str = "mahdar-{job_id}.docx"
 JSON_FILENAME_TEMPLATE: str = "mahdar-{job_id}.json"
 DOCX_MEDIA_TYPE: str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
-
-DIARIZATION_RAM_BYTES_PER_SECOND: int = 16000 * 4

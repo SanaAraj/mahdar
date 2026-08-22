@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import httpx
 
@@ -13,6 +14,11 @@ _GROQ_LABEL = "Groq LLM"
 _LOCAL_LABEL = "Local LLM"
 
 
+@dataclass
+class ReasoningSupport:
+    enabled: bool = True
+
+
 class ChatConfig:
     def __init__(
         self,
@@ -20,7 +26,7 @@ class ChatConfig:
         label: str,
         failure_error_cls: type,
         error_key: str,
-        include_reasoning_support: list[bool] | None,
+        include_reasoning_support: ReasoningSupport | None,
     ) -> None:
         self.label = label
         self.failure_error_cls = failure_error_cls
@@ -38,7 +44,7 @@ class ChatConfig:
 
 
 class GroqChatConfig(ChatConfig):
-    def __init__(self, settings, include_reasoning_support: list[bool] | None = None) -> None:
+    def __init__(self, settings, include_reasoning_support: ReasoningSupport | None = None) -> None:
         super().__init__(
             label=_GROQ_LABEL,
             failure_error_cls=AnalysisError,
@@ -58,7 +64,7 @@ class GroqChatConfig(ChatConfig):
 
 
 class LocalChatConfig(ChatConfig):
-    def __init__(self, settings, include_reasoning_support: list[bool] | None = None) -> None:
+    def __init__(self, settings, include_reasoning_support: ReasoningSupport | None = None) -> None:
         super().__init__(
             label=_LOCAL_LABEL,
             failure_error_cls=AnalysisError,
@@ -92,7 +98,7 @@ class ChatProviderTransport:
             "messages": messages,
         }
         flag_cell = self._c.include_reasoning_support
-        if flag_cell is not None and flag_cell[0]:
+        if flag_cell is not None and flag_cell.enabled:
             body["include_reasoning"] = False
         key = self._c.key_or_none()
         headers = {"Authorization": f"Bearer {key}"} if key else {}
@@ -103,7 +109,7 @@ class ChatProviderTransport:
             raise RetryableError(self._fail("unavailable", f"timeout {exc}")) from exc
         except httpx.TransportError as exc:
             raise RetryableError(self._fail("unavailable", str(exc))) from exc
-        if flag_cell is not None and _is_param_rejection(resp, "include_reasoning"):
+        if "include_reasoning" in body and _is_param_rejection(resp, "include_reasoning"):
             self._drop_reasoning_flag()
             return self._post(messages)
         if resp.status_code >= 400:
@@ -115,9 +121,9 @@ class ChatProviderTransport:
         cell = self._c.include_reasoning_support
         if cell is None:
             return
-        if cell[0]:
+        if cell.enabled:
             log.info("include_reasoning rejected by the API; dropping it for this process")
-            cell[0] = False
+            cell.enabled = False
 
     def _fail(self, suffix: str, technical: str):
         return self._c.failure_error_cls(self._c.error_key + "." + suffix, technical)

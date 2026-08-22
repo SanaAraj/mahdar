@@ -83,7 +83,10 @@ def json_object(content: str) -> dict:
             [{"type": "missing", "loc": (), "input": content[: constants.ERROR_SNIPPET_CHARS]}],
         )
     try:
-        return normalize_schema_keys(json.loads(text[start : end + 1]))
+        normalized = normalize_schema_keys(json.loads(text[start : end + 1]))
+        if not isinstance(normalized, dict):
+            raise TypeError("analysis payload is not an object")
+        return normalized
     except (ValueError, TypeError) as exc:
         raise ValidationError.from_exception_data(
             "Analysis",
