@@ -104,11 +104,15 @@ export function uploadMeetingFile(
       cleanup();
       if (xhr.status === 201) {
         try {
-          const parsed = meetingJobSchema.parse(JSON.parse(xhr.responseText));
-          resolve(parsed);
+          const body = JSON.parse(xhr.responseText) as Record<string, unknown>;
+          const id = typeof body.id === "string" ? body.id : "";
+          if (id) {
+            getMeeting(id).then(resolve, reject);
+            return;
+          }
         } catch {
-          reject({ status: xhr.status, code: "parse.error", message_ar: "" } satisfies ApiError);
         }
+        reject({ status: xhr.status, code: "parse.error", message_ar: "" } satisfies ApiError);
         return;
       }
       let message_ar = xhr.statusText;
