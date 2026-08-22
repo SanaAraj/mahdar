@@ -131,6 +131,8 @@ def _parse_hijri(text: str) -> date | None:
 
 
 def _relative(text: str, anchor: date) -> date | None:
+    if text.startswith("قبل "):
+        text = text.removeprefix("قبل ")
     if text == "غدًا" or text == "غدا":
         return anchor + timedelta(days=1)
     if text == "بعد غد":
@@ -140,10 +142,10 @@ def _relative(text: str, anchor: date) -> date | None:
     day_match = re.fullmatch(r"(?:يوم\s+)?(\S+)\s+القادم", text)
     if day_match and day_match.group(1) in _DAY_INDEX:
         return _next_weekday(anchor, _DAY_INDEX[day_match.group(1)])
-    after = re.fullmatch(r"بعد\s+(\d+)\s+(أيام|أسابيع|أشهر)", text)
+    after = re.fullmatch(r"(?:بعد|خلال)\s+(\d+)\s+(أيام|أسابيع|أشهر)", text)
     if after:
         return _after_units(anchor, int(after.group(1)), after.group(2))
-    dual = re.fullmatch(r"بعد\s+(يومين|أسبوعين)", text)
+    dual = re.fullmatch(r"(?:بعد|خلال)\s+(يومين|أسبوعين)", text)
     if dual:
         return anchor + timedelta(days=_WORD_NUMBER[dual.group(1)])
     if text == "بعد شهرين":
@@ -153,12 +155,14 @@ def _relative(text: str, anchor: date) -> date | None:
         return anchor + timedelta(days=_WORD_NUMBER[single.group(1)])
     if text == "بعد شهر":
         return _add_months(anchor, 1)
-    if text == "الأسبوع القادم":
+    if text in ("الأسبوع القادم", "الأسبوع المقبل", "الأسبوع الجاي"):
         return anchor + timedelta(days=7)
     if text == "نهاية الأسبوع":
         return _coming_weekday(anchor, 4)
     if text == "نهاية أسبوع العمل":
         return _coming_weekday(anchor, 3)
+    if text in ("نهاية الأسبوع القادم", "نهاية الأسبوع المقبل", "نهاية الأسبوع الجاي"):
+        return _coming_weekday(anchor, 4) + timedelta(days=7)
     if text == "نهاية الشهر":
         return _month_end(anchor, 0)
     if text in ("نهاية الشهر القادم", "نهاية الشهر المقبل", "نهاية الشهر الجاي"):
