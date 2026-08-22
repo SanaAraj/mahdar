@@ -16,6 +16,7 @@ ARABIC_RTL_RANGES: str = r"؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿"
 
 
 GROQ_API_BASE: str = "https://api.groq.com/openai/v1"
+COHERE_API_BASE: str = "https://api.cohere.com/v2"
 STT_API_PATH: str = "/audio/transcriptions"
 LLM_API_PATH: str = "/chat/completions"
 MODELS_API_PATH: str = "/models"
@@ -92,6 +93,7 @@ REDUCE_SUMMARY_MAX_ITEMS: int = 60
 
 
 DEFAULT_LLM_MODEL: str = "openai/gpt-oss-120b"
+DEFAULT_COHERE_STT_MODEL: str = "cohere-transcribe-arabic-07-2026"
 
 
 FALLBACK_CHAT_MODELS: tuple[str, ...] = (

@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     stt_provider: str = "groq"
     llm_provider: str = "groq"
     groq_api_key: str = ""
+    cohere_api_key: str = ""
     groq_stt_model: str = "whisper-large-v3"
+    cohere_stt_model: str = constants.DEFAULT_COHERE_STT_MODEL
     groq_llm_model: str = constants.DEFAULT_LLM_MODEL
     local_stt_model: str = constants.DEFAULT_LOCAL_STT_MODEL
     local_llm_model: str = constants.DEFAULT_LOCAL_LLM_MODEL

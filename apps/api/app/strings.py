@@ -25,6 +25,10 @@ MESSAGES: dict[str, str] = {
     "groq.rate_limit": "تجاوزنا حد الطلبات المجانية مؤقتًا، أعد المحاولة بعد قليل",
     "groq.unavailable": "تعذّر الوصول إلى خدمة التفريغ الصوتي، تحقّق من الاتصال بالإنترنت",
     "groq.failed": "فشل التفريغ الصوتي",
+    "cohere.key_missing": "مفتاح COHERE_API_KEY غير مضبوط في ملف .env",
+    "cohere.rate_limit": "تجاوزنا حد طلبات Cohere مؤقتًا، أعد المحاولة بعد قليل",
+    "cohere.unavailable": "تعذّر الوصول إلى خدمة Cohere، تحقّق من الاتصال بالإنترنت",
+    "cohere.failed": "فشل التفريغ الصوتي عبر Cohere",
     "local_llm.key_missing": "مزود التحليل المحلي غير متاح",
     "local_llm.rate_limit": "مزود التحليل المحلي مشغول مؤقتًا، أعد المحاولة بعد قليل",
     "local_llm.unavailable": (
@@ -33,7 +37,7 @@ MESSAGES: dict[str, str] = {
     "local_llm.failed": "فشل التحليل عبر المزود المحلي",
     "local_stt.failed": "فشل التفريغ الصوتي عبر المزود المحلي",
     "config.unknown_provider": (
-        "قيمة STT_PROVIDER أو LLM_PROVIDER في ملف .env غير معروفة، القيم المقبولة: groq أو local"
+        "قيمة المزود غير معروفة، خيارات STT: groq أو cohere أو local، وخيارات LLM: groq أو local"
     ),
     "transcription.unexpected": "فشل التفريغ الصوتي بشكل غير متوقع",
     "transcription.empty": "لم يعثر التفريغ على أي كلام مسموع في هذا التسجيل",
