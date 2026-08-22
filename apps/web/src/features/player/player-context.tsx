@@ -7,6 +7,7 @@ import type { Sentence } from "@/lib/schemas";
 import { useAudioPlayer } from "./hooks/use-player";
 
 export interface PlayerApi {
+  isReady: boolean;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -15,6 +16,7 @@ export interface PlayerApi {
   seekTo: (t: number) => void;
   play: () => void;
   pause: () => void;
+  reload: () => void;
   seekToSentence: (id: string) => boolean;
 }
 
@@ -44,6 +46,7 @@ export function PlayerProvider({ meetingId, sentences, children }: PlayerProvide
 
   const api = useMemo<PlayerApi>(
     () => ({
+      isReady: player.isReady,
       isPlaying: player.isPlaying,
       currentTime: player.currentTime,
       duration: player.duration,
@@ -52,6 +55,7 @@ export function PlayerProvider({ meetingId, sentences, children }: PlayerProvide
       seekTo: player.seekTo,
       play: player.play,
       pause: player.pause,
+      reload: player.reload,
       seekToSentence,
     }),
     [player, seekToSentence],

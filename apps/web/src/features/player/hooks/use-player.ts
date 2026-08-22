@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface AudioPlayerState {
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  isReady: boolean;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -10,28 +11,40 @@ export interface AudioPlayerState {
   seekTo: (t: number) => void;
   play: () => void;
   pause: () => void;
+  reload: () => void;
 }
 
 export function useAudioPlayer(src: string, audioFailedMessage: string): AudioPlayerState {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [errorAr, setErrorAr] = useState<string | null>(null);
 
   useEffect(() => {
+    setIsReady(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setErrorAr(null);
     const el = new Audio();
     el.preload = "metadata";
     el.src = src;
     audioRef.current = el;
 
     const onTimeUpdate = () => setCurrentTime(el.currentTime);
-    const onLoadedMetadata = () => setDuration(el.duration || 0);
+    const onLoadedMetadata = () => {
+      setDuration(el.duration || 0);
+      setIsReady(el.duration > 0);
+      setErrorAr(null);
+    };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onEnded = () => setIsPlaying(false);
     const onError = () => {
       setIsPlaying(false);
+      setIsReady(false);
       setErrorAr(audioFailedMessage);
     };
 
@@ -41,6 +54,7 @@ export function useAudioPlayer(src: string, audioFailedMessage: string): AudioPl
     el.addEventListener("pause", onPause);
     el.addEventListener("ended", onEnded);
     el.addEventListener("error", onError);
+    el.load();
 
     return () => {
       el.pause();
@@ -83,5 +97,25 @@ export function useAudioPlayer(src: string, audioFailedMessage: string): AudioPl
     setCurrentTime(t);
   }, []);
 
-  return { audioRef, isPlaying, currentTime, duration, errorAr, toggle, seekTo, play, pause };
+  const reload = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    setErrorAr(null);
+    setIsReady(false);
+    el.load();
+  }, []);
+
+  return {
+    audioRef,
+    isReady,
+    isPlaying,
+    currentTime,
+    duration,
+    errorAr,
+    toggle,
+    seekTo,
+    play,
+    pause,
+    reload,
+  };
 }
